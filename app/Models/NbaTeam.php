@@ -5,14 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class League extends Model
+class NbaTeam extends Model
 {
     use HasFactory;
 
     public $timestamps = false;
 
-    protected $fillable = [
-        "name",
-        "short_name",
+    protected $guarded = [
+        "id",
     ];
+
+    public function players()
+    {
+        return $this->hasMany(NbaPlayer::class, 'team_id');
+    }
 }
