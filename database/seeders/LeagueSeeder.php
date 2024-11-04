@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\LeagueEnum;
 use App\Models\League;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -13,19 +14,12 @@ class LeagueSeeder extends Seeder
      */
     public function run(): void
     {
-        League::create([
-            "name" => "National Basketball Association",
-            "short_name" => "NBA",
-        ]);
+        $insertion = [];
 
-        League::create([
-            "name" => "National Football League",
-            "short_name" => "NFL",
-        ]);
+        foreach (LeagueEnum::getFullName() as $league => $fullName) {
+            $insertion[] = ['name' => $fullName, 'short_name' => $league];
+        }
 
-        League::create([
-            "name" => "NCAA Basketball",
-            "short_name" => "NCAAB",
-        ]);
+        League::insert($insertion);
     }
 }

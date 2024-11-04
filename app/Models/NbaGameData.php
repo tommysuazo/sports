@@ -9,14 +9,13 @@ class NbaGameData extends Model
 {
     use HasFactory;
 
-    protected $connection = 'sports_games';
+    protected $connection = 'sports_seeders';
 
-    protected $table = 'nba';
+    protected $table = 'nba_games';
 
     public $timestamps = false;
 
     protected $guarded = [
-        'id',
     ];
 
     protected $casts = [

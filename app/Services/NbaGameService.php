@@ -29,7 +29,7 @@ class NbaGameService
         //     $this->sportsnetService->createManyNbaGamesByDate($date);
         // }
 
-        $this->sportsnetService->createManyNbaGamesByDate(Carbon::now());
+        return $this->sportsnetService->createManyNbaGamesByDate(Carbon::now());
     }
 
 }

@@ -13,9 +13,10 @@ return new class extends Migration
     {
         Schema::create('nba_players', function (Blueprint $table) {
             $table->id();
-            $table->string('sportsnet_id')->nullable()->unique();
+            $table->string('sportsnet_id')->unique();
             $table->string('first_name');
             $table->string('last_name');
+            $table->string('position');
             $table->foreignId('team_id')->nullable()->constrained('nba_teams');
         });
     }

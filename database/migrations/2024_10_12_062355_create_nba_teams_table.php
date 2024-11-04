@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('nba_teams', function (Blueprint $table) {
             $table->id();
-            $table->string('sportsnet_id')->nullable()->unique();
-            $table->string('code');
+            $table->string('sportsnet_id')->unique();
+            $table->string('short_name', 5);
             $table->string('name');
             $table->string('city');
         });

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('nba_player_scores', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('player_id')->constrained('nba_players');
             $table->foreignId('score_id')->constrained('nba_scores');
             $table->integer('mins')->default(0);
             $table->integer('points')->default(0);

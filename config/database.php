@@ -62,12 +62,12 @@ return [
             ]) : [],
         ],
 
-        'sports_games' => [
+        'sports_seeders' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
             'host' => env('DB_SECONDARY_HOST', '127.0.0.1'),
             'port' => env('DB_SECONDARY_PORT', '3306'),
-            'database' => env('DB_SECONDARY_DATABASE', 'sports_games'),
+            'database' => env('DB_SECONDARY_DATABASE', 'sports_seeders'),
             'username' => env('DB_SECONDARY_USERNAME', 'root'),
             'password' => env('DB_SECONDARY_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),

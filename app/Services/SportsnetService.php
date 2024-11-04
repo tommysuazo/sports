@@ -9,6 +9,7 @@ use App\Models\NbaScore;
 use App\Models\NbaTeam;
 use App\Repositories\NbaGameDataRepository;
 use App\Repositories\NbaGameRepository;
+use App\Repositories\NbaPlayerRepository;
 use App\Repositories\NbaPlayerScoreRepository;
 use App\Repositories\NbaScoreRepository;
 use Carbon\Carbon;
@@ -17,46 +18,77 @@ use Illuminate\Support\Facades\Http;
 
 class SportsnetService
 {
-    const NBA_GAMEDAY_BASE_URL = "https://mobile-statsv2.sportsnet.ca/ticker?league=nba&day=";
-    const NBA_GAME_BASE_URL = "https://stats-api.sportsnet.ca/livetracker?league=nba&id=";
+    const BASE_URL = 'https://stats-api.sportsnet.ca';
 
     public function __construct(
         protected NbaGameRepository $nbaGameRepository,
         protected NbaScoreRepository $nbaScoreRepository,
         protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
         protected NbaGameDataRepository $nbaGameDataRepository,
+        protected NbaPlayerRepository $nbaPlayerRepository,
     ){
+    }
+
+    public function getGameDayUrl(string $league, Carbon $date)
+    {
+        return self::BASE_URL . "/ticker?league={$league}&day=" . $date->ToDateString();
+    }
+
+    public function getGameWeekUrl(string $league, int $week)
+    {
+        return self::BASE_URL . "/ticker?league={$league}&week={$week}&season_type=reg";
+    }
+
+    public function getGameUrl(string $league, string $gameId)
+    {
+        return self::BASE_URL . "/livetracker?league={$league}&id={$gameId}";
+    }
+
+    public function getTeamsUrl(string $league)
+    {
+        return self::BASE_URL . "/teams?league={$league}";
+    }
+
+    public function getTeamPlayersUrl(string $league, string $teamSportnetsId)
+    {
+        return self::BASE_URL . "/players?league={$league}&team_id={$teamSportnetsId}";
     }
 
     public function createManyNbaGamesByDate(Carbon $date)
     {
-        // $gameDayResponse = Http::get(self::NBA_GAMEDAY_BASE_URL . $date->ToDateString());
-
+        
+        // $gameDayResponse = Http::get($this->getGameDayUrl('nba', $date));
         // if (!$gameDayResponse->successful()) {
         //     throw new Exception("Failed to get NBA games from " . $date->toDateString(), $gameDayResponse->status());
         // }
         
-        // foreach ($gameDayResponse->json('data.games') as $game) {
-        //     $this->createNbaGame($game['id']);
+        // foreach ($gameDayResponse->json('data.games.*.id') as $gameId) {
+        //     $this->createNbaGame($gameId);
         // }
 
-        $this->createNbaGame();
+        // $gameDayResponse = Http::get("https://www.covers.com/sports/ncaab/matchups");
+
+        // return $gameDayResponse->body();
+
+        return $this->createNbaGame();
 
     }
 
-    public function createNbaGame(string $sportsnetGameId = '10dee9b6-c101-4bba-82af-f43f3dcfff30'): NbaGame
+    public function createNbaGame(string $sportsnetGameId = '10dee9b6-c101-4bba-82af-f43f3dcfff30')
     {
-        $gameData = NbaGameData::firstWhere('sportsnet_id', $sportsnetGameId);
+        $nbaGameData = NbaGameData::firstWhere('external_id', $sportsnetGameId);
         
-        if (!$gameData) {
-            $response = Http::get(self::NBA_GAME_BASE_URL . $sportsnetGameId);
+        if (!$nbaGameData) {
+            $response = Http::get($this->getGameUrl('nba', $sportsnetGameId));
 
             if (!$response->successful()) {
-                throw new Exception("Failed to get nba game from sportsnet with id:" . $gameData->id);
+                throw new Exception("Failed to get nba game from sportsnet with id:" . $nbaGameData->id);
             }
 
-            $gameData = $this->nbaGameDataRepository->create($response->json('data.game'));
+            $nbaGameData = $this->nbaGameDataRepository->create($response->json('data.game'));
         }
+
+        $gameData = $nbaGameData->data;
 
         $game = NbaGame::firstWhere('sportsnet_id', $sportsnetGameId);
 
@@ -96,7 +128,7 @@ class SportsnetService
 
         $scoreData = $gameData[$teamKey]['boxscore_totals'];
 
-        $team = NbaTeam::firstWhere('code', $gameData[$teamKey]['short_name']);
+        $team = NbaTeam::firstWhere('sportsnet_id', $gameData[$teamKey]['id']);
 
         return $this->nbaScoreRepository->create([
             'points' => $scoreData['points'],
@@ -125,7 +157,7 @@ class SportsnetService
     {
         $playersSportnetIds = array_map(fn($player) => $player['id'], $playersScores);
         
-        $currentPlayers = NbaPlayer::where('sportsnet_id', $playersSportnetIds)->get();
+        $currentPlayers = NbaPlayer::whereIn('sportsnet_id', $playersSportnetIds)->get();
 
         $team = $nbaScore->team;
 
@@ -133,18 +165,15 @@ class SportsnetService
             $player = $currentPlayers->firstWhere('sportsnet_id', $playerScore['id']);
 
             if (is_null($player)) {
-                $player = NbaPlayer::where('first_name', $playerScore["first_name"])
-                    ->where('last_name',  $playerScore["last_name"])
-                    ->first();
+                $player = $this->nbaPlayerRepository->create([
+                    'sportsnet_id' => $playerScore["id"],
+                    'first_name' => $playerScore["first_name"],
+                    'last_name' => $playerScore["last_name"],
+                ], $team);
+            }
 
-                if (is_null($player)) {
-                    $player = NbaPlayer::create([
-                        'sportsnet_id' => $playerScore["id"],
-                        'first_name' => $playerScore["first_name"],
-                        'last_name' => $playerScore["last_name"],
-                        'team_id' => $team->id,
-                    ]);
-                }
+            if ($player->team_id != $team->id) {
+                $this->nbaPlayerRepository->updateTeam($player, $team);
             }
 
             $this->nbaPlayerScoreRepository->create([
