@@ -3,18 +3,19 @@
 namespace App\Repositories;
 
 use App\Models\NbaGame;
-use App\Models\NbaScore;
+use App\Models\NbaTeamScore;
 use App\Models\NbaTeam;
 
-class NbaScoreRepository
+class NbaTeamScoreRepository
 {
     public function list(array $filters) {}
 
     public function show(NbaGame $nbaGame) {}
 
-    public function create(array $data, NbaTeam $nbaTeam): NbaScore
+    public function create(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamScore
     {
-        return NbaScore::create([
+        return NbaTeamScore::create([
+            'game_id' => $nbaGame->id,
             'team_id' => $nbaTeam->id,
             'points' => $data['points'],
             'first_half_points' => $data['first_half_points'],
@@ -23,6 +24,8 @@ class NbaScoreRepository
             'second_quarter_points' => $data['second_quarter_points'],
             'third_quarter_points' => $data['third_quarter_points'],
             'fourth_quarter_points' => $data['fourth_quarter_points'],
+            'overtimes' => $data['overtimes'],
+            'overtime_points' => $data['overtime_points'],
             'assists' => $data['assists'],
             'rebounds' => $data['rebounds'],
             'steals' => $data['steals'],

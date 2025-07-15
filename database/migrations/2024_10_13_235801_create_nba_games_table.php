@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Games\NbaGameStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -13,9 +14,10 @@ return new class extends Migration
     {
         Schema::create('nba_games', function (Blueprint $table) {
             $table->id();
-            $table->string('sportsnet_id')->nullable()->unique();
-            $table->foreignId('away_score_id')->unique()->constrained('nba_scores');
-            $table->foreignId('home_score_id')->unique()->constrained('nba_scores');
+            // $table->string('sportsnet_id')->unique();
+            $table->string('external_id')->unique();
+            $table->foreignId('away_team_id')->constrained('nba_teams');
+            $table->foreignId('home_team_id')->constrained('nba_teams');
             $table->timestamp('started_at');
         });
     }

@@ -2,18 +2,21 @@
 
 namespace App\Services;
 
+use App\Enums\Games\NbaGameStatus;
 use App\Models\NbaGame;
 use App\Models\NbaGameData;
 use App\Models\NbaPlayer;
-use App\Models\NbaScore;
+use App\Models\NbaTeamScore;
 use App\Models\NbaTeam;
 use App\Repositories\NbaGameDataRepository;
 use App\Repositories\NbaGameRepository;
 use App\Repositories\NbaPlayerRepository;
 use App\Repositories\NbaPlayerScoreRepository;
-use App\Repositories\NbaScoreRepository;
+use App\Repositories\NbaTeamScoreRepository;
+use App\Repositories\NbaTeamRepository;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class SportsnetService
@@ -22,12 +25,12 @@ class SportsnetService
 
     public function __construct(
         protected NbaGameRepository $nbaGameRepository,
-        protected NbaScoreRepository $nbaScoreRepository,
+        protected NbaTeamScoreRepository $nbaTeamScoreRepository,
         protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
         protected NbaGameDataRepository $nbaGameDataRepository,
+        protected NbaTeamRepository $nbaTeamRepository,
         protected NbaPlayerRepository $nbaPlayerRepository,
-    ){
-    }
+    ) {}
 
     public function getGameDayUrl(string $league, Carbon $date)
     {
@@ -54,73 +57,74 @@ class SportsnetService
         return self::BASE_URL . "/players?league={$league}&team_id={$teamSportnetsId}";
     }
 
-    public function createManyNbaGamesByDate(Carbon $date)
+    public function createNbaGame(string $sportsnetGameId): NbaGame
     {
         
-        // $gameDayResponse = Http::get($this->getGameDayUrl('nba', $date));
-        // if (!$gameDayResponse->successful()) {
-        //     throw new Exception("Failed to get NBA games from " . $date->toDateString(), $gameDayResponse->status());
-        // }
-        
-        // foreach ($gameDayResponse->json('data.games.*.id') as $gameId) {
-        //     $this->createNbaGame($gameId);
-        // }
+        DB::beginTransaction();
 
-        // $gameDayResponse = Http::get("https://www.covers.com/sports/ncaab/matchups");
+        try {
+            $nbaGameData = NbaGameData::firstWhere('external_id', $sportsnetGameId);
 
-        // return $gameDayResponse->body();
+            if (!$nbaGameData) {
+                $response = Http::get($this->getGameUrl('nba', $sportsnetGameId));
 
-        return $this->createNbaGame();
+                if (!$response->successful()) {
+                    throw new Exception("Failed to get nba game from sportsnet with id:" . $nbaGameData->id);
+                }
 
-    }
-
-    public function createNbaGame(string $sportsnetGameId = '10dee9b6-c101-4bba-82af-f43f3dcfff30')
-    {
-        $nbaGameData = NbaGameData::firstWhere('external_id', $sportsnetGameId);
-        
-        if (!$nbaGameData) {
-            $response = Http::get($this->getGameUrl('nba', $sportsnetGameId));
-
-            if (!$response->successful()) {
-                throw new Exception("Failed to get nba game from sportsnet with id:" . $nbaGameData->id);
+                $nbaGameData = $this->nbaGameDataRepository->create($response->json('data.game'));
             }
 
-            $nbaGameData = $this->nbaGameDataRepository->create($response->json('data.game'));
-        }
+            $gameData = $nbaGameData->data;
 
-        $gameData = $nbaGameData->data;
+            $nbaGame = $this->nbaGameRepository->findByExternalId($sportsnetGameId);
 
-        $game = NbaGame::firstWhere('sportsnet_id', $sportsnetGameId);
+            if ($nbaGame?->status === NbaGameStatus::FINAL->value) {
+                return $nbaGame;
+            }
 
-        if ($game) {
-            return $game;
-        }
+            $awayTeam = $this->nbaTeamRepository->findByExternalId($gameData['visiting_team']['id']);
+            $homeTeam = $this->nbaTeamRepository->findByExternalId($gameData['home_team']['id']);
 
-        $awayScore = $this->createNbaScore($gameData, false);
+            if (!$nbaGame) {
+                $nbaGame = $this->nbaGameRepository->create(
+                    [
+                        'external_id' => $gameData['details']['id'],
+                        'started_at' => Carbon::parse($gameData['details']['datetime'])->toDateTimeString(),
+                        'status' => NbaGameStatus::getValueBySportsnetGameType($gameData['details']['status']),
+                    ], $awayTeam, $homeTeam
+                );
+            }
 
-        $awayPlayers = array_merge($gameData['visiting_team']['starters'], $gameData['visiting_team']['bench']);
+            if ($gameData["details"]["status"] !== 'Final') {
+                return $nbaGame;
+            }
 
-        $this->createManyNbaPlayerScore($awayPlayers, $awayScore);
+            $this->createNbaTeamScore($gameData, $nbaGame, $awayTeam);
+
+            $this->createNbaTeamScore($gameData, $nbaGame, $homeTeam);
+
+            $this->nbaGameRepository->updateStatus($nbaGame, NbaGameStatus::FINAL);
+            
+            DB::commit();
         
-        // $awayInjuries = $away['injuries'];
-
-        $homeScore = $this->createNbaScore($gameData);
-
-        $homePlayers = array_merge($gameData['home_team']['starters'], $gameData['home_team']['bench']);
-
-        $this->createManyNbaPlayerScore($homePlayers, $homeScore);
-
-        // $homeInjuries = $home['injuries'];
-
-        return $this->nbaGameRepository->create([
-            'sportsnet_id' => $gameData['details']['id'],
-            'started_at' => Carbon::parse($gameData['details']['datetime'])->toDateTimeString(),
-        ], $awayScore, $homeScore);
+            return $nbaGame;
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            throw $th;
+        }
     }
 
-    public function createNbaScore(array $gameData, bool $isHomeTeam = true): NbaScore
+    public function getNbaGamePlayerList(array $teamData): array
     {
-        $teamKey = $isHomeTeam ? 'home_team' : 'visiting_team';
+        $starters = array_map(fn($starter) => $starter + ['is_starter' => true], $teamData['starters']);
+
+        return array_merge($starters, $teamData['bench']);
+    }
+
+    public function createNbaTeamScore(array $gameData, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamScore
+    {
+        $teamKey = $nbaTeam->id === $nbaGame->home_team_id ? 'home_team' : 'visiting_team';
 
         $quarterKey = $teamKey . '_score';
 
@@ -128,9 +132,9 @@ class SportsnetService
 
         $scoreData = $gameData[$teamKey]['boxscore_totals'];
 
-        $team = NbaTeam::firstWhere('sportsnet_id', $gameData[$teamKey]['id']);
+        $this->createManyNbaPlayerScore($this->getNbaGamePlayerList($gameData[$teamKey]), $nbaGame, $nbaTeam);
 
-        return $this->nbaScoreRepository->create([
+        return $this->nbaTeamScoreRepository->create([
             'points' => $scoreData['points'],
             'first_half_points' => $quarters[0][$quarterKey] + $quarters[1][$quarterKey],
             'second_half_points' => $quarters[2][$quarterKey] + $quarters[3][$quarterKey],
@@ -150,33 +154,33 @@ class SportsnetService
             'three_pointers_attempted' => $scoreData['three_pointers_attempted'],
             'free_throws_made' => $scoreData['free_throws_made'],
             'free_throws_attempted' => $scoreData['free_throws_attempted'],
-        ], $team);
+        ], $nbaGame, $nbaTeam);
     }
 
-    public function createManyNbaPlayerScore(array $playersScores, NbaScore $nbaScore): void
+    public function createManyNbaPlayerScore(array $playerScores, NbaGame $nbaGame, NbaTeam $nbaTeam): void
     {
-        $playersSportnetIds = array_map(fn($player) => $player['id'], $playersScores);
-        
-        $currentPlayers = NbaPlayer::whereIn('sportsnet_id', $playersSportnetIds)->get();
+        $playersSportnetIds = array_map(fn($player) => $player['id'], $playerScores);
 
-        $team = $nbaScore->team;
+        $currentPlayers = NbaPlayer::whereIn('external_id', $playersSportnetIds)->get();
 
-        foreach ($playersScores as $playerScore) {
-            $player = $currentPlayers->firstWhere('sportsnet_id', $playerScore['id']);
+        foreach ($playerScores as $playerScore) {
+            $player = $currentPlayers->firstWhere('external_id', $playerScore['id']);
 
             if (is_null($player)) {
                 $player = $this->nbaPlayerRepository->create([
-                    'sportsnet_id' => $playerScore["id"],
+                    'external_id' => $playerScore["id"],
                     'first_name' => $playerScore["first_name"],
                     'last_name' => $playerScore["last_name"],
-                ], $team);
+                    'position' => $playerScore["short_position"],
+                ], $nbaTeam);
             }
 
-            if ($player->team_id != $team->id) {
-                $this->nbaPlayerRepository->updateTeam($player, $team);
+            if ($player->team_id != $nbaTeam->id) {
+                $this->nbaPlayerRepository->updateTeam($player, $nbaTeam);
             }
 
             $this->nbaPlayerScoreRepository->create([
+                'is_starter' => $playerScore['is_starter'] ?? false,
                 'mins' => $playerScore['mins'],
                 'points' => $playerScore['points'],
                 'assists' => $playerScore['assists'],
@@ -191,8 +195,7 @@ class SportsnetService
                 'three_pointers_attempted' => $playerScore['three_pointers_attempted'],
                 'free_throws_made' => $playerScore['free_throws_made'],
                 'free_throws_attempted' => $playerScore['free_throws_attempted'],
-            ], $player, $nbaScore);
+            ], $nbaGame, $nbaTeam, $player);
         }
-
     }
 }

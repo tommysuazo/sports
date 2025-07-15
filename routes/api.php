@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\NbaGameController;
+use App\Http\Controllers\NbaMarketController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,7 +18,13 @@ Route::middleware(['api'])->group(function () {
     Route::prefix('/nba')->group(function () {
         Route::prefix('/games')->group(function () {
             Route::get('/', [NbaGameController::class, 'index']);
-            Route::post('/', [NbaGameController::class, 'store']);
+            Route::post('/import', [NbaGameController::class, 'importByDateRange']);
+        });
+
+        Route::prefix('/markets')->group(function () {
+            Route::get('/matchups', [NbaMarketController::class, 'matchups']);
+            Route::put('/sync', [NbaMarketController::class, 'sync']);
+            Route::put('/sync-players', [NbaMarketController::class, 'syncPlayers']);
         });
     });
 });

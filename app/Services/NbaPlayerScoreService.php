@@ -23,11 +23,7 @@ class NbaPlayerScoreService
 
     public function create(array $data)
     {
-        $period = CarbonPeriod::create(Carbon::parse($data['from_date']), Carbon::parse($data['to_date']));
-
-        foreach ($period as $date) {
-            $this->sportsnetService->createManyNbaGamesByDate($date);
-        }
+        
     }
 
 }

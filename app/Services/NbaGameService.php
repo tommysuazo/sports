@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Http;
 class NbaGameService
 {
     public function __construct(
+        protected NbaExternalService $nbaExternalService,
         protected NbaGameRepository $nbaGameRepository,
-        protected SportsnetService $sportsnetService,
     ){
     }
 
@@ -21,15 +21,14 @@ class NbaGameService
         return NbaGame::all();
     }
 
-    public function create(array $data)
+    public function importGamesByDateRange(array $data)
     {
-        // $period = CarbonPeriod::create(Carbon::parse($data['from_date']), Carbon::parse($data['to_date']));
+        $period = CarbonPeriod::create(Carbon::parse($data['from']), Carbon::parse($data['to']));
 
-        // foreach ($period as $date) {
-        //     $this->sportsnetService->createManyNbaGamesByDate($date);
-        // }
+        foreach ($period as $date) {
+            $this->nbaExternalService->importGamesByDate($date);
+        }
 
-        return $this->sportsnetService->createManyNbaGamesByDate(Carbon::now());
     }
 
 }

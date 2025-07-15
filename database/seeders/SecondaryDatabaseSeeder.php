@@ -2,7 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Enums\LeagueEnum;
+use App\Enums\Leagues\LeagueEnum;
+use App\Services\DigitalSportsTechService;
 use App\Services\SportsnetService;
 use Exception;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -15,6 +16,7 @@ class SecondaryDatabaseSeeder extends Seeder
 {
     public function __construct(
         protected SportsnetService $sportsnetService,
+        protected DigitalSportsTechService $digitalSportsTechService,
     ){
     }
     /**
@@ -27,7 +29,7 @@ class SecondaryDatabaseSeeder extends Seeder
         $tables = DB::connection($connection)->select('SHOW TABLES');
         
         foreach ($tables as $table) {
-            $tableName = array_values((array)$table)[0];
+            $tableName = array_values($table)[0];
             Schema::connection($connection)->dropIfExists($tableName);
         }
 
@@ -131,6 +133,38 @@ class SecondaryDatabaseSeeder extends Seeder
                 `data` JSON NOT NULL
             );
         ");
+
+
+        DB::connection($connection)->statement("
+            CREATE TABLE IF NOT EXISTS players_market_id (
+                external_id VARCHAR(255),
+                market_id VARCHAR(255),
+                first_name VARCHAR(255),
+                last_name VARCHAR(255),
+                league VARCHAR(32)
+            );
+        ");
+
+        foreach ($teams as $team) {
+
+            $url = $this->sportsnetService->getTeamPlayersUrl($league, $team->id);
+
+            $response = Http::get($url);
+
+            if (!$response->successful()) {
+                throw new Exception("Failed to get {$league} teams.");
+            }
+
+            $json = $response->json('data');
+
+            $rostersInsertion[] = [
+                'team_external_id' => $team->id,
+                'team_name' => $team->team_name_formatted,
+                'league' => $league,
+                'players_url' => $url,
+                'players_data' => json_encode($json),
+            ];
+        }
 
     }
 }

@@ -13,11 +13,19 @@ return new class extends Migration
     {
         Schema::create('nba_players', function (Blueprint $table) {
             $table->id();
-            $table->string('sportsnet_id')->unique();
+            // $table->string('sportsnet_id')->unique();
+            $table->string('external_id')->unique();
+            $table->string('market_id')->nullable()->unique();
             $table->string('first_name');
             $table->string('last_name');
-            $table->string('position');
             $table->foreignId('team_id')->nullable()->constrained('nba_teams');
+            $table->decimal('points_market', 4, 1)->nullable();
+            $table->decimal('assists_market', 4, 1)->nullable();
+            $table->decimal('rebounds_market', 4, 1)->nullable();
+            $table->decimal('pt3_market', 4, 1)->nullable();
+            $table->decimal('pra_market', 4, 1)->nullable();
+            $table->decimal('steals_market', 4, 1)->nullable();
+            $table->decimal('blocks_market', 4, 1)->nullable();
         });
     }
 

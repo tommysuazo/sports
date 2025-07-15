@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreNbaGameRequest extends FormRequest
+class ImportNbaGamesRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,8 +23,8 @@ class StoreNbaGameRequest extends FormRequest
     {
         return [
             // 'source_site' => 'required|in:sportsnet',
-            // 'from_date' => ['required', 'date', 'before:to_date'],
-            // 'to_date'   => ['required', 'date', 'after:from_date'],
+            'from' => ['required', 'date', 'before_or_equal:to', 'after_or_equal:2024-10-22'],
+            'to' => ['required', 'date', 'after_or_equal:from', 'before_or_equal:' . now()->toDateString()],
         ];
     }
 }
