@@ -3,7 +3,8 @@
 namespace App\Services;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechLeagueEnum;
-use App\Enums\DigitalSportsTech\DigitalSportsTechMarketTypeEnum;
+use App\Enums\DigitalSportsTech\DigitalSportsTechNbaEnum;
+use App\Enums\DigitalSportsTech\DigitalSportsTechWnbaEnum;
 use App\Models\NbaGame;
 use App\Models\NbaPlayer;
 use App\Repositories\NbaGameRepository;
@@ -24,8 +25,11 @@ class DigitalSportsTechService
     ){
     }
 
-    protected function getMarketUrl(string $marketType, string $league)
+    protected function getPlayerMarketsByTypeUrl(string $marketType, string $league)
     {
+        // dd('https://bv2-us.digitalsportstech.com/api/dfm/gamesByOu?gameId=null&statistic=Total%20Rebounds&league=wnba',
+        // self::BASE_URL . "dfm/gamesByOu?gameId=null&statistic={$marketType}&league={$league}");
+
         return self::BASE_URL . "dfm/gamesByOu?gameId=null&statistic={$marketType}&league={$league}";
     }
 
@@ -38,16 +42,25 @@ class DigitalSportsTechService
     {
         $leagueId = DigitalSportsTechLeagueEnum::getLeagueIds($league);
 
-        $teamId = DigitalSportsTechLeagueEnum::getNbaTeamIds($teamShortName);
+        $teamId = DigitalSportsTechNbaEnum::getTeamId($teamShortName);
         
-        return self::BASE_URL . "player?isActive=trueleagueId={$leagueId}&teamId={$teamId}";
+        return self::BASE_URL . "player?isActive=true&leagueId={$leagueId}&teamId={$teamId}";
+    }
+
+    public function getWnbaTeamPlayersUrl(string $league, string $teamShortName)
+    {
+        $leagueId = DigitalSportsTechLeagueEnum::getLeagueIds($league);
+
+        $teamId = DigitalSportsTechWnbaEnum::getTeamId($teamShortName);
+        
+        return self::BASE_URL . "player?isActive=true&leagueId={$leagueId}&teamId={$teamId}";
     }
 
     public function syncNbaMarkets()
     {
         Cache::put('all', []);
-        foreach (DigitalSportsTechMarketTypeEnum::all() as $statType => $marketType) {
-            $marketTypesRequest = Http::get($this->getMarketUrl($marketType, 'nba'));
+        foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
+            $marketTypesRequest = Http::get($this->getPlayerMarketsByTypeUrl($marketType, 'nba'));
 
             if (!$marketTypesRequest->successful()) {
                 throw new Exception("Failed to get nba {$statType} markets from digital sports tech");
@@ -73,10 +86,34 @@ class DigitalSportsTechService
             }
         }
     }
+
+    public function getMarkets2()
+    {
+        foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
+            $marketTypesRequest = Http::get($this->getPlayerMarketsByTypeUrl($marketType, 'nba'));
+
+            if (!$marketTypesRequest->successful()) {
+                throw new Exception("Failed to get nba {$statType} markets from digital sports tech");
+            }
+
+            foreach ($marketTypesRequest->json('*.providers.0.id') as $marketTypeId) {
+                $playerMarketTypeRequest = Http::get($this->getGamePlayerMarketUrl($marketType, $marketTypeId));
+
+                if (!$playerMarketTypeRequest->successful()) {
+                    throw new Exception("Failed to get nba markets id {$marketTypeId} from digital sports tech");
+                }
+
+                foreach ($playerMarketTypeRequest->json('0.players') as $playerMarket) {
+                    $value = $playerMarket['markets'][0]['value'];
+                    NbaPlayer::where('market_id', $playerMarket['id'])->update([$statType . '_market' => $value]);
+                }
+            }
+        }
+    }
     
     public function syncNbaMarkets2()
     {
-        foreach (DigitalSportsTechMarketTypeEnum::all() as $statType => $marketType) {
+        foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
             $marketTypesRequest = Cache::get('marketType-' . $statType);
 
             foreach (Collect($marketTypesRequest)->pluck('providers.0.id') as $marketTypeId) {
@@ -96,7 +133,7 @@ class DigitalSportsTechService
     {
         $allPlayers = NbaPlayer::with('team')->select('*')->selectFullname()->has('team')->get();
 
-        foreach (DigitalSportsTechLeagueEnum::getNbaTeamIds() as $teamCode => $teamMarketId) {
+        foreach (DigitalSportsTechNbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
 
             $response = Http::get($this->getTeamPlayersUrl('nba', $teamCode));
@@ -123,7 +160,333 @@ class DigitalSportsTechService
         }
     }
 
-    public static function getFakeGamePointsMarket()
+    public function syncWnbaPlayerMarketIds()
+    {
+        $allPlayers = NbaPlayer::with('team')->select('*')->selectFullname()->whereNotNull('team_id')->get();
+
+        foreach (DigitalSportsTechWnbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
+            $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
+
+            $response = Http::get($this->getWnbaTeamPlayersUrl('wnba', $teamCode));
+
+            foreach($response->json() as $marketPlayer) {
+                $player = $players->firstWhere('full_name', $marketPlayer['name']);
+
+                if (!$player) {
+                    $name = explode(' ', $marketPlayer['name']);
+
+                    $player = $players->filter(
+                        fn($player) => $player->first_name === $name[0] && strpos($player->last_name, substr($name[1], 0, 3)) === 0
+                    )->first();
+
+                    if (!$player) {
+                        $player = $players->filter(
+                            fn($player) => $player->last_name === $name[1] && strpos($player->first_name, substr($name[0], 0, 3)) === 0
+                        )->first();
+                    }
+                }
+
+                $player?->update(['market_id' => $marketPlayer['id']]);
+            }
+        }
+    }
+
+
+    public function getNbaPlayerMarkets()
+    {
+        // $playerMarkets = Cache::get('nba-player-markets');
+        $playerMarkets = false;
+
+        if ($playerMarkets) {
+            return $playerMarkets;
+        }
+
+        $response = Http::get($this->getPlayerMarketsByTypeUrl(DigitalSportsTechNbaEnum::POINTS->value, 'wnba'));
+
+        if (!$response->successful()) {
+            throw new Exception("Failed to get nba markets from digital sports tech");
+        }
+
+        $playerMarkets = [];
+
+        foreach ($response->json('*.providers.0.id') as $gameId) {
+            
+            foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
+
+                $marketTypeResponse = Http::get($this->getGamePlayerMarketUrl($marketType, $gameId));
+
+                if (!$marketTypeResponse->successful()) {
+                    throw new Exception("Failed to get nba markets id {$gameId} from digital sports tech");
+                }
+                
+                if ($marketTypeResponse->json('0.players')) {
+                    foreach ($marketTypeResponse->json('0.players') as $player) {
+                        $playerMarkets['p' . $player['id']]['name'] = $player['name'];
+                        $playerMarkets['p' . $player['id']][$statType] = [
+                            'value' => $player['markets'][0]['value'],
+                            'over_odd' => $player['markets'][0]['type'] === 18 
+                                ? $player['markets'][0]['odds'] 
+                                : $player['markets'][1]['odds'],
+                            'under_odd' => $player['markets'][0]['type'] === 18 
+                                ? $player['markets'][1]['odds'] 
+                                : $player['markets'][0]['odds'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        Cache::put('nba-player-markets', $playerMarkets);
+
+        return $playerMarkets;
+    }
+
+    public function getFakePointsMarkets()
+    {
+        Http::fake([
+            'https://api.example.com/market' => Http::response($this->getFakePlayerPointsMarkets(), 200), // status code
+        ]);
+
+        $markets = Http::get('https://api.example.com/market')->json();
+
+        foreach ($markets as $market) {
+            $homeTeamId = $market['team1'][0]['providers'][0]['id'];
+
+            ///trabajo de game market
+            // foreach
+
+            Http::fake([
+                'https://api.example.com/game-market' => Http::response($this->getFakeGamePointsMarket(), 200), // status code
+            ]);
+
+            $gameMarkets = Http::get(
+                'https://api.example.com/game-market'
+                // 'https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=254244&statistic=Points'
+                )->json();
+
+            // return $gameMarkets;
+
+            $gameProps = array_map(
+                fn($player) => [
+                    'player_market_id' => $player['id'],
+                    'value' => $player['markets'][0]['value'],
+                    'over_odd' => $player['markets'][0]['type'] === 18 ? $player['markets'][0]['odds'] : $player['markets'][1]['odds'],
+                    'under_odd' => $player['markets'][0]['type'] === 18 ? $player['markets'][1]['odds'] : $player['markets'][0]['odds'],
+                ],
+                $gameMarkets[0]['players']
+            );
+
+            return $gameProps;
+
+            // end-foreach
+        }
+
+        // foreach ($marketTypesRequest->json('*.providers.0.id') as $marketTypeId) {
+        //     $playerMarketTypeRequest = Http::get($this->getGamePlayerMarketUrl($marketType, $marketTypeId));
+
+        //     if (!$playerMarketTypeRequest->successful()) {
+        //         throw new Exception("Failed to get nba markets id {$marketTypeId} from digital sports tech");
+        //     }
+
+        //     foreach ($playerMarketTypeRequest->json('0.players') as $playerMarket) {
+        //         $value = $playerMarket['markets'][0]['value'];
+        //         NbaPlayer::where('market_id', $playerMarket['id'])->update([$statType . '_market' => $value]);
+        //     }
+        // }
+    }
+
+    public function getFakePlayerPointsMarkets()
+    {
+        $json = '
+            [
+                {
+                    "_id": "66f7d88fbe2b7b1ded3dd26c",
+                    "__v": 0,
+                    "date": "2024-10-31T01:30:00.000Z",
+                    "isActive": true,
+                    "isFinal": false,
+                    "isGameFeedActive": true,
+                    "isInPlayEnabled": true,
+                    "isPlayerFeedActive": true,
+                    "league": "nba",
+                    "providers": [
+                        {
+                            "id": 234691,
+                            "name": "nix"
+                        },
+                        {
+                            "id": 52630503,
+                            "name": "betbalancer"
+                        },
+                        {
+                            "id": 52630503,
+                            "name": "betradar"
+                        },
+                        {
+                            "id": 52630503,
+                            "name": "betbalancer"
+                        }
+                    ],
+                    "sport": "basketball",
+                    "status": "pregame",
+                    "team1": [
+                        {
+                            "title": "oklahoma city thunder",
+                            "abbreviation": "okc",
+                            "providers": [
+                                {
+                                    "id": 2119,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 3418,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ],
+                    "team2": [
+                        {
+                            "title": "san antonio spurs",
+                            "abbreviation": "sa",
+                            "providers": [
+                                {
+                                    "id": 2116,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 3429,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "_id": "66f7d890be2b7b1ded3dd279",
+                    "__v": 0,
+                    "date": "2024-10-31T02:00:00.000Z",
+                    "isActive": true,
+                    "isFinal": false,
+                    "isGameFeedActive": true,
+                    "isInPlayEnabled": false,
+                    "isPlayerFeedActive": true,
+                    "league": "nba",
+                    "providers": [
+                        {
+                            "id": 234692,
+                            "name": "nix"
+                        },
+                        {
+                            "id": 52631655,
+                            "name": "betbalancer"
+                        },
+                        {
+                            "id": 52631655,
+                            "name": "betradar"
+                        },
+                        {
+                            "id": 52631655,
+                            "name": "betbalancer"
+                        }
+                    ],
+                    "sport": "basketball",
+                    "status": "pregame",
+                    "team1": [
+                        {
+                            "title": "golden state warriors",
+                            "abbreviation": "gsw",
+                            "providers": [
+                                {
+                                    "id": 2107,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 3428,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ],
+                    "team2": [
+                        {
+                            "title": "new orleans pelicans",
+                            "abbreviation": "nop",
+                            "providers": [
+                                {
+                                    "id": 2115,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 5539,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "_id": "66f7d891be2b7b1ded3dd280",
+                    "__v": 0,
+                    "date": "2024-10-31T02:30:00.000Z",
+                    "isActive": true,
+                    "isFinal": false,
+                    "isGameFeedActive": true,
+                    "isInPlayEnabled": false,
+                    "isPlayerFeedActive": true,
+                    "league": "nba",
+                    "providers": [
+                        {
+                            "id": 234693,
+                            "name": "nix"
+                        },
+                        {
+                            "id": 52630647,
+                            "name": "betbalancer"
+                        }
+                    ],
+                    "sport": "basketball",
+                    "status": "pregame",
+                    "team1": [
+                        {
+                            "title": "los angeles clippers",
+                            "abbreviation": "lac",
+                            "providers": [
+                                {
+                                    "id": 2108,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 3425,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ],
+                    "team2": [
+                        {
+                            "title": "portland trail blazers",
+                            "abbreviation": "por",
+                            "providers": [
+                                {
+                                    "id": 2120,
+                                    "name": "nix"
+                                },
+                                {
+                                    "id": 3414,
+                                    "name": "betbalancer"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        ';
+
+        return json_decode($json);
+    }
+
+    public function getFakeGamePointsMarket()
     {
         // RECORDAR MARKETS.TYPE = 18 ES MERCADO DE TIPO A MAS Y MARKETS.TYPE = 19 ES EL MERCADO DE A MENOS
         $json = '[
@@ -607,5 +970,4 @@ class DigitalSportsTechService
         return json_decode($json);
         
     }
-
 }

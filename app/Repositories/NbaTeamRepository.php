@@ -4,11 +4,48 @@ namespace App\Repositories;
 
 use App\Models\NbaTeam;
 
-class NbaTeamRepository 
+class NbaTeamRepository extends MultiLeagueRepository
 {
+    protected string $defaultLeague = 'nba';
+
+    protected array $modelMap = [
+        'nba' => NbaTeam::class,
+        'wnba' => NbaTeam::class,
+    ];
+
+    public function getTeamsDataForMatchups(array $teamIds, bool $withHomeScores = true)
+    {
+        $scoreType = $withHomeScores ? 'homeScores' : 'awayScores';
+
+        return NbaTeam::join('nba_team_scores', 'nba_teams.id', 'nba_team_scores.team_id')
+            ->with([
+                'players' => function ($queryPlayer) use ($scoreType) {
+                    $queryPlayer->with([
+                        'scores' => fn($queryScore) => $queryScore->orderByDesc('nba_player_scores.id')->limit(5),
+                        $scoreType => fn($queryScore) => $queryScore->orderByDesc('nba_player_scores.id')->limit(5),
+                    ]);
+                },
+            ])
+        ->selectRaw("
+            nba_teams.*,
+            ROUND(AVG(nba_team_scores.points), 1) as points_avg,
+            ROUND(AVG(nba_team_scores.first_half_points), 1) as first_half_points_avg,
+            ROUND(AVG(nba_team_scores.second_half_points), 1) as second_half_points_avg,
+            ROUND(AVG(nba_team_scores.first_quarter_points), 1) as first_quarter_points_avg,
+            ROUND(AVG(nba_team_scores.second_quarter_points), 1) as second_quarter_points_avg,
+            ROUND(AVG(nba_team_scores.third_quarter_points), 1) as third_quarter_points_avg,
+            ROUND(AVG(nba_team_scores.fourth_quarter_points), 1) as fourth_quarter_points_avg,
+            ROUND(AVG(nba_team_scores.assists), 1) as assists_avg,
+            ROUND(AVG(nba_team_scores.rebounds), 1) as rebounds_avg
+        ")
+        ->whereIn('external_id', $teamIds)
+        ->groupBy('nba_teams.id')
+        ->get();
+    }
 
     public function updateAverageStats(array $data, NbaTeam $nbaTeam)
     {
+
         $nbaTeam->update([
             'average_points' => $data['average_points'],
             'average_points_against' => $data['average_points_against'],

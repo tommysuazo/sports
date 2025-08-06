@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechLeagueEnum;
+use App\Enums\DigitalSportsTech\DigitalSportsTechNbaEnum;
 use App\Enums\Leagues\LeagueEnum;
 use App\Models\NbaPlayer;
 use App\Models\NbaTeam;
@@ -36,7 +37,7 @@ class NbaSportsNetSeeder extends Seeder
         foreach ($teams as $team) {
             $insertion[] = [
                 'external_id' => $team['id'],
-                'market_id' => DigitalSportsTechLeagueEnum::getNbaTeamIds($team['short_name']),
+                'market_id' => DigitalSportsTechNbaEnum::getTeamId($team['short_name']),
                 'name' => $team['name'],
                 'short_name' => $team['short_name'],
                 'city' => $team['city'],

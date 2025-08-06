@@ -37,4 +37,9 @@ class NbaTeam extends Model
         return $this->hasMany(NbaGame::class, 'away_team_id')
             ->where('status', NbaGameStatus::FINAL->value);
     }
+
+    public function scores()
+    {
+        return $this->hasMany(NbaTeamScore::class, 'team_id', 'id');
+    }
 }

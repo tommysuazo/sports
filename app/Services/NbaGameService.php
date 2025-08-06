@@ -25,10 +25,12 @@ class NbaGameService
     {
         $period = CarbonPeriod::create(Carbon::parse($data['from']), Carbon::parse($data['to']));
 
+        if (isset($data['league'])) {
+            $this->nbaExternalService->setLeague('wnba');
+        }
+
         foreach ($period as $date) {
             $this->nbaExternalService->importGamesByDate($date);
         }
-
     }
-
 }

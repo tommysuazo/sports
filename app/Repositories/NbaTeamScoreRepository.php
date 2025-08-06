@@ -6,8 +6,15 @@ use App\Models\NbaGame;
 use App\Models\NbaTeamScore;
 use App\Models\NbaTeam;
 
-class NbaTeamScoreRepository
+class NbaTeamScoreRepository extends MultiLeagueRepository
 {
+    protected string $defaultLeague = 'nba';
+
+    protected array $modelMap = [
+        'nba' => NbaTeamScore::class,
+        'wnba' => NbaTeamScore::class,
+    ];
+
     public function list(array $filters) {}
 
     public function show(NbaGame $nbaGame) {}

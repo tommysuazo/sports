@@ -13,9 +13,16 @@ class NbaMarketController extends Controller
     ) {
     }
 
+    public function index()
+    {
+        return $this->nbaMarketService->getMarkets();
+    }
+
     public function matchups()
     {
-        return NbaGameMatchupResource::collection($this->nbaMarketService->getMatchups());
+        return $this->nbaMarketService->getMatchups();
+        
+        // return NbaGameMatchupResource::collection($this->nbaMarketService->getMatchups());
     }
 
     public function sync()
@@ -26,5 +33,10 @@ class NbaMarketController extends Controller
     public function syncPlayers()
     {
         return $this->nbaMarketService->syncPlayers();
+    }
+
+    public function syncWnbaPlayers()
+    {
+        return $this->nbaMarketService->syncWnbaPlayers();
     }
 }

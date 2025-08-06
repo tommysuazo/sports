@@ -29,7 +29,7 @@ class NbaGameController extends Controller
     public function index()
     {
 
-        return DigitalSportsTechService::getFakeGamePointsMarket();
+        // return DigitalSportsTechService::getFakeGamePointsMarket();
         // return response()->json(NbaExternalService::getTeamStats()->json());
 
         // Cache::tags(['posts', 'homepage'])->put('post_1', ['title' => 'Hola Mundo'], now()->addMinutes(5));
@@ -38,10 +38,10 @@ class NbaGameController extends Controller
 
         // dd($post);
 
-        // return NbaExternalService::getGameByid('1522500025')->json();
+        // return NbaExternalService::getGameByid('1022500123')->json();
 
         // return NbaExternalService::getTodayLineups();
-        return NbaExternalService::getGameDayUrl(Carbon::parse('2024-10-23'))->json();
+        return $this->nbaExternalService->getGameDay(Carbon::parse('2025-04-05'))->json();
         // return $this->digitalSportsTechService->syncNbaPlayerMarketIds();
         // return NbaExternalService::getGameDayUrl(Carbon::parse('2025-02-20'))->json();
         // return $this->sportsnetService->getTeamPlayersUrl(LeagueEnum::NBA->value, '583ecb8f-fb46-11e1-82cb-f4ce4684ea4c');
@@ -80,6 +80,7 @@ class NbaGameController extends Controller
 
     public function importByDateRange(ImportNbaGamesRequest $request)
     {
+        
         $this->nbaGameService->importGamesByDateRange($request->validated());
     }
 
