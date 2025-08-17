@@ -4,8 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class BasketballPlayerScore extends Model
+abstract class BasketballPlayerScore extends Model
 {
     use HasFactory;
     
@@ -33,13 +34,7 @@ class BasketballPlayerScore extends Model
         'free_throws_attempted',
     ];
 
-    public function player()
-    {
-        return $this->belongsTo(NbaPlayer::class);
-    }
+    abstract public function player(): BelongsTo;
 
-    public function game()
-    {
-        return $this->belongsTo(NbaGame::class);
-    }
+    abstract public function game(): BelongsTo;
 }

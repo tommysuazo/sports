@@ -4,41 +4,28 @@ namespace App\Models;
 
 use App\Enums\Games\NbaGameStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class NbaTeam extends Model
+class NbaTeam extends BasketballTeam
 {
-    use HasFactory;
-
-    public $timestamps = false;
-
-    protected $fillable = [
-        'name',
-        'external_id',
-        'market_id',
-        'short_name',
-        'city',
-    ];
-
-    public function players()
+    public function players(): HasMany
     {
         return $this->hasMany(NbaPlayer::class, 'team_id');
     }
 
-    public function homeGames()
+    public function homeGames(): HasMany
     {
         return $this->hasMany(NbaGame::class, 'home_team_id')
             ->where('status', NbaGameStatus::FINAL->value);
     }
 
-    public function awayGames()
+    public function awayGames(): HasMany
     {
         return $this->hasMany(NbaGame::class, 'away_team_id')
             ->where('status', NbaGameStatus::FINAL->value);
     }
 
-    public function scores()
+    public function scores(): HasMany
     {
         return $this->hasMany(NbaTeamScore::class, 'team_id', 'id');
     }

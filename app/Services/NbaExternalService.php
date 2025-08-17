@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Games\NbaGameStatus;
-use App\Enums\Leagues\BasketBallLeagueExternalEnum;
+use App\Enums\Leagues\BasketballLeagueExternalEnum;
 use App\Models\NbaGame;
 use App\Models\NbaPlayer;
 use App\Models\NbaTeam;

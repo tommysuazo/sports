@@ -4,15 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class NbaTeamScore extends BasketballTeamScore
+class NcaabTeamScore extends BasketballTeamScore
 {
     public function team(): BelongsTo
     {
-        return $this->belongsTo(NbaTeam::class, 'team_id', 'id');
+        return $this->belongsTo(NcaabTeam::class, 'team_id', 'id');
     }
 
     public function game(): BelongsTo
     {
-        return $this->belongsTo(NbaGame::class, 'game_id', 'id');
+        return $this->belongsTo(NcaabGame::class, 'game_id', 'id');
     }
 }

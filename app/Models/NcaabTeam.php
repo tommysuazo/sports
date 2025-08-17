@@ -5,25 +5,25 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class WnbaTeam extends BasketballTeam
+class NcaabTeam extends BasketballTeam
 {
     public function players(): HasMany
     {
-        return $this->hasMany(WnbaPlayer::class, 'team_id');
+        return $this->hasMany(NcaabPlayer::class, 'team_id');
     }
 
     public function homeGames(): HasMany
     {
-        return $this->hasMany(WnbaGame::class, 'home_team_id');
+        return $this->hasMany(NcaabGame::class, 'home_team_id');
     }
 
     public function awayGames(): HasMany
     {
-        return $this->hasMany(WnbaGame::class, 'away_team_id');
+        return $this->hasMany(NcaabGame::class, 'away_team_id');
     }
 
     public function scores(): HasMany
     {
-        return $this->hasMany(WnbaTeamScore::class, 'team_id', 'id');
+        return $this->hasMany(NcaabTeamScore::class, 'team_id', 'id');
     }
 }

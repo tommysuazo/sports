@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('nba_players', function (Blueprint $table) {
+        Schema::create('ncaab_players', function (Blueprint $table) {
             $table->id();
-            // $table->string('sportsnet_id')->unique();
             $table->string('external_id')->unique();
             $table->string('market_id')->nullable()->unique();
             $table->string('first_name');
             $table->string('last_name');
-            $table->foreignId('team_id')->nullable()->constrained('nba_teams');
+            $table->foreignId('team_id')->nullable()->constrained('ncaab_teams');
         });
     }
 
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('nba_players');
+        Schema::dropIfExists('ncaab_players');
     }
 };
