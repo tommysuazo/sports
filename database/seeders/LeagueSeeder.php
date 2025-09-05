@@ -16,7 +16,7 @@ class LeagueSeeder extends Seeder
     {
         $insertion = [];
 
-        foreach (LeagueEnum::getFullName() as $league => $fullName) {
+        foreach (LeagueEnum::getFullNames() as $league => $fullName) {
             $insertion[] = ['name' => $fullName, 'short_name' => $league];
         }
 

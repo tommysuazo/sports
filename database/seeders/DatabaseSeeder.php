@@ -23,8 +23,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             LeagueSeeder::class,
             // NbaSeeder::class,
-            WnbaSeeder::class,
+            // WnbaSeeder::class,
             // NbaSportsNetSeeder::class,
+            NflSeeder::class,
         ]);
     }
 }

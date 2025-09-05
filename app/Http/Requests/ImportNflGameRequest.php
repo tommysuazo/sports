@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class ImportWnbaGamesRequest extends FormRequest
+class ImportNflGameRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,15 +22,8 @@ class ImportWnbaGamesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // 'source_site' => 'required|in:sportsnet',
-            'from' => ['required', 'date', 'before_or_equal:to', 'after_or_equal:2025-05-16'],
-            'to' => ['required', 'date', 'after_or_equal:from', 'before_or_equal:2025-09-11'],
-            'league' => 'required',
+            'from' => ['required', 'integer', 'min:1', 'lte:to'],
+            'to' => ['integer', 'min:1', 'max:18'],
         ];
-    }
-
-    public function prepareForValidation()
-    {
-        $this->merge(['league' => 'WNBA']);
     }
 }

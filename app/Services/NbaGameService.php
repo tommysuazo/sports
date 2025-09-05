@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 class NbaGameService
 {
     public function __construct(
-        protected NbaExternalService $nbaExternalService,
+        protected NbaStatsService $nbaStatsService,
         protected NbaGameRepository $nbaGameRepository,
     ){
     }
@@ -25,12 +25,8 @@ class NbaGameService
     {
         $period = CarbonPeriod::create(Carbon::parse($data['from']), Carbon::parse($data['to']));
 
-        if (isset($data['league'])) {
-            $this->nbaExternalService->setLeague('wnba');
-        }
-
         foreach ($period as $date) {
-            $this->nbaExternalService->importGamesByDate($date);
+            $this->nbaStatsService->importGamesByDate($date);
         }
     }
 }

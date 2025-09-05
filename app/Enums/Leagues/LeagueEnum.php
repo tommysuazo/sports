@@ -28,15 +28,20 @@ enum LeagueEnum: string
         ];
     }
 
-    public static function getFullName(string $code = null)
+    public static function getFullNames()
     {
-        $leagueNames = [
+        return [
             self::NBA->value => 'National Basketball Association',
             self::NFL->value => 'National Football League',
             self::NHL->value => 'National Hockey League',
             self::NCAAB->value => 'NCAA Basketball',
         ];
+    }
 
-        return $leagueNames[$code] ?? $leagueNames;
+    public static function getFullName(string $code = null)
+    {
+        $leagueNames = self::getFullNames();
+
+        return $leagueNames[$code];
     }
 }

@@ -3,22 +3,22 @@
 namespace App\Services;
 
 use App\Exceptions\KnownException;
-use App\Models\NbaGame;
-use App\Models\NbaPlayer;
-use App\Models\NbaTeam;
-use App\Models\NbaTeamScore;
-use App\Repositories\NbaGameRepository;
-use App\Repositories\NbaPlayerRepository;
-use App\Repositories\NbaPlayerScoreRepository;
-use App\Repositories\NbaTeamRepository;
-use App\Repositories\NbaTeamScoreRepository;
+use App\Models\WnbaGame;
+use App\Models\WnbaPlayer;
+use App\Models\WnbaTeam;
+use App\Models\WnbaTeamScore;
+use App\Repositories\WnbaGameRepository;
+use App\Repositories\WnbaPlayerRepository;
+use App\Repositories\WnbaPlayerScoreRepository;
+use App\Repositories\WnbaTeamRepository;
+use App\Repositories\WnbaTeamScoreRepository;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class NbaStatsService
+class WnbaStatsService
 {
     const HEADERS = [
         "ocp-apim-subscription-key" => "747fa6900c6c4e89a58b81b72f36eb96",
@@ -43,23 +43,23 @@ class NbaStatsService
     const BASE_URL = 'https://stats.nba.com';
 
     public function __construct(
-        protected NbaGameRepository $nbaGameRepository,
-        protected NbaTeamRepository $nbaTeamRepository,
-        protected NbaTeamScoreRepository $nbaTeamScoreRepository,
-        protected NbaPlayerScoreService $nbaPlayerScoreService,
-        protected NbaPlayerRepository $nbaPlayerRepository,
-        protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
+        protected WnbaGameRepository $nbaGameRepository,
+        protected WnbaTeamRepository $nbaTeamRepository,
+        protected WnbaTeamScoreRepository $nbaTeamScoreRepository,
+        protected WnbaPlayerScoreService $nbaPlayerScoreService,
+        protected WnbaPlayerRepository $nbaPlayerRepository,
+        protected WnbaPlayerScoreRepository $nbaPlayerScoreRepository,
     ) {
     }
 
     public static function getPlayers()
     {   
         $request = Http::withHeaders(self::HEADERS)
-            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2024-25');
+            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=10&Season=2024-25');
 
-        if (!$request->successful()) {
-            throw new KnownException("Fallo en el retorno de jugadores de Nba con la clase " . __CLASS__);
-        }
+            if (!$request->successful()) {
+                throw new KnownException("Fallo en el retorno de jugadores de Wnba con la clase " . __CLASS__);
+            }
 
         $players = $request->json('resultSets.0.rowSet');
 
@@ -76,10 +76,10 @@ class NbaStatsService
     public static function getGamesByDate(Carbon $date)
     {
         $request = Http::withHeaders(self::HEADERS)
-            ->get(self::BASE_URL . '/stats/scoreboardv3?DayOffset=0&LeagueID=00&GameDate=' . $date->toDateString());
+            ->get(self::BASE_URL . '/stats/scoreboardv3?DayOffset=0&LeagueID=10&GameDate=' . $date->toDateString());
 
         if (!$request->successful()) {
-            throw new KnownException("Fallo al intentar conseguir los juegos de NBA del dia " . $date->toDateString());
+            throw new KnownException("Fallo al intentar conseguir los juegos de WNBA del dia " . $date->toDateString());
         }
             
         return $request->json('scoreboard.games');
@@ -99,21 +99,21 @@ class NbaStatsService
         return $request;
     }
 
-    public static function getTodayLineups()
-    {
-        $request = Http::withHeaders(self::HEADERS)
-            ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
+    // public static function getTodayLineups()
+    // {
+    //     $request = Http::withHeaders(self::HEADERS)
+    //         ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
         
-        if (!$request->successful()) {
-            throw new knownException("Fallo al intentar obtener las alineaciones del dia de hoy");
-        }
+    //     if (!$request->successful()) {
+    //         throw new knownException("Fallo al intentar obtener las alineaciones del dia de hoy");
+    //     }
 
-        return $request;
-    }
+    //     return $request;
+    // }
 
     public function importGamesByDate(Carbon $date)
     {   
-        Log::info("Importando juegos de NBA de la fecha " . $date->toDateString());
+        Log::info("Importando juegos de WNBA de la fecha " . $date->toDateString());
 
         $games = $this->getGamesByDate($date);
 
@@ -122,9 +122,9 @@ class NbaStatsService
         }
     }
 
-    public function createGame(string $gameId, array $awayQuarters, array $homeQuarters): null|NbaGame
+    public function createGame(string $gameId, array $awayQuarters, array $homeQuarters): null|WnbaGame
     {
-        Log::info("Creando juego de NBA con ID externo " . $gameId);
+        Log::info("Creando juego de WNBA con ID externo " . $gameId);
 
         if ($this->nbaGameRepository->findByExternalId($gameId)) {
             return null;
@@ -145,17 +145,17 @@ class NbaStatsService
 
             Log::info("away team: " . $data['awayTeamId'] . " - home team: " . $data['homeTeamId']);
 
-            $awayTeam = NbaTeam::firstWhere('external_id', $data['awayTeamId']);
-            $homeTeam = NbaTeam::firstWhere('external_id', $data['homeTeamId']);
+            $awayTeam = WnbaTeam::firstWhere('external_id', $data['awayTeamId']);
+            $homeTeam = WnbaTeam::firstWhere('external_id', $data['homeTeamId']);
 
             $game = $this->nbaGameRepository->create([
                 'external_id' => $data['gameId'],
                 'started_at' => $startedAt->toDateTimeString(),
             ], $awayTeam, $homeTeam);
 
-            $this->createNbaTeamScore($data['awayTeam'] + ['quarters' => $awayQuarters], $game, $awayTeam);
+            $this->createWnbaTeamScore($data['awayTeam'] + ['quarters' => $awayQuarters], $game, $awayTeam);
 
-            $this->createNbaTeamScore($data['homeTeam'] + ['quarters' => $homeQuarters], $game, $homeTeam);
+            $this->createWnbaTeamScore($data['homeTeam'] + ['quarters' => $homeQuarters], $game, $homeTeam);
 
             DB::commit();
 
@@ -167,9 +167,9 @@ class NbaStatsService
         return $game;
     }
 
-    public function createNbaTeamScore(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamScore
+    public function createWnbaTeamScore(array $data, WnbaGame $nbaGame, WnbaTeam $nbaTeam): WnbaTeamScore
     {
-        $this->createManyNbaPlayerScore($data['players'], $nbaGame, $nbaTeam);
+        $this->createManyWnbaPlayerScore($data['players'], $nbaGame, $nbaTeam);
 
         $statistics = $data['statistics'];
         $quarters = collect($data['quarters']);
@@ -205,11 +205,11 @@ class NbaStatsService
         ], $nbaGame, $nbaTeam);
     }
 
-    public function createManyNbaPlayerScore(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): void
+    public function createManyWnbaPlayerScore(array $data, WnbaGame $nbaGame, WnbaTeam $nbaTeam): void
     {
         $playersExternalIds = array_map(fn($player) => $player['personId'], $data);
 
-        $currentPlayers = NbaPlayer::whereIn('external_id', $playersExternalIds)->get();
+        $currentPlayers = WnbaPlayer::whereIn('external_id', $playersExternalIds)->get();
 
         $starterCount = 0;
 

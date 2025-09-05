@@ -8,6 +8,7 @@ use App\Models\NbaPlayer;
 use App\Models\NbaTeam;
 use App\Services\DigitalSportsTechService;
 use App\Services\NbaExternalService;
+use App\Services\NbaStatsService;
 use Illuminate\Database\Seeder;
 
 class NbaSeeder extends Seeder
@@ -181,12 +182,12 @@ class NbaSeeder extends Seeder
 
         $players = [];
 
-        foreach (NbaExternalService::getPlayersData() as $playerData) {
+        foreach (NbaStatsService::getPlayers() as $playerData) {
             $players[] = [
-                'external_id' => $playerData[0],
-                'first_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData[2]),
-                'last_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData[1]),
-                'team_id' => $teams->firstWhere('external_id', $playerData[4])?->id,
+                'external_id' => $playerData['external_id'],
+                'first_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData['first_name']),
+                'last_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData['last_name']),
+                'team_id' => $teams->firstWhere('external_id', $playerData['team_external_id'])?->id,
             ];
         }
 

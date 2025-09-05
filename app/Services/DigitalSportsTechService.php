@@ -5,15 +5,10 @@ namespace App\Services;
 use App\Enums\DigitalSportsTech\DigitalSportsTechLeagueEnum;
 use App\Enums\DigitalSportsTech\DigitalSportsTechNbaEnum;
 use App\Enums\DigitalSportsTech\DigitalSportsTechWnbaEnum;
-use App\Models\NbaGame;
 use App\Models\NbaPlayer;
-use App\Repositories\NbaGameRepository;
 use App\Repositories\NbaPlayerRepository;
-use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use Exception;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class DigitalSportsTechService
@@ -131,7 +126,7 @@ class DigitalSportsTechService
     
     public function syncNbaPlayerMarketIds()
     {
-        $allPlayers = NbaPlayer::with('team')->select('*')->selectFullname()->has('team')->get();
+        $allPlayers = NbaPlayer::with('team')->has('team')->get();
 
         foreach (DigitalSportsTechNbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
@@ -162,7 +157,7 @@ class DigitalSportsTechService
 
     public function syncWnbaPlayerMarketIds()
     {
-        $allPlayers = NbaPlayer::with('team')->select('*')->selectFullname()->whereNotNull('team_id')->get();
+        $allPlayers = NbaPlayer::with('team')->whereNotNull('team_id')->get();
 
         foreach (DigitalSportsTechWnbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);

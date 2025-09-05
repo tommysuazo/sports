@@ -1,0 +1,355 @@
+<?php
+
+namespace App\Services;
+
+use App\Exceptions\KnownException;
+use App\Models\NflGame;
+use App\Models\NflPlayer;
+use App\Models\NflPlayerStat;
+use App\Models\NflTeam;
+use App\Models\NflTeamStat;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class NflExternalService
+{
+    public function __construct(
+        // protected
+    ) {
+    }
+
+
+    public static function getTeams()
+    {
+        $request = Http::get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams');
+
+        if (!$request->successful()) {
+            throw new KnownException("Fallo en el retorno del listado de equipos de la NFL con la clase " . __CLASS__);
+        }
+
+        return $request->json();
+    }
+
+    public static function getTeamPlayers(NflTeam $team)
+    {
+        $request = Http::get("https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/{$team->external_id}/roster");
+
+        if (!$request->successful()) {
+            throw new KnownException("Fallo en el retorno del listado del roster de equipos de la NFL");
+        }
+
+        return $request->json();
+    }
+
+    public static function getGameIdsByWeek(int $week, int $year)
+    {
+        // season = 1 => pretemporada || 2 =>  temp regular || 3 => playoff
+        $request = Http::get(
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/{$year}/types/2/weeks/{$week}/events"
+        );
+
+        if (!$request->successful()) {
+            throw new KnownException(
+                "Fallo en el retorno del listado de los juegos de NFL en la semana " . $week
+            );
+        }
+
+        return Collect($request->json('items.*.$ref'))->map(function ($url) {
+            preg_match('/events\/(\d+)\?/', $url, $matches);
+            return $matches[1] ?? null;
+        })->filter()->values();
+    }
+    
+    public static function getGame(string $gameId)
+    {
+        $request = Http::get("https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={$gameId}");
+
+        if (!$request->successful()) {
+            throw new KnownException("Fallo del juego de ID externo '{$gameId}' de NFL");
+        }
+
+        return $request->json();
+    }
+
+    public function importGamesByWeek(int $week, int $year)
+    {
+        Log::info("Importing NFL games for week {$week}");
+
+        $gameIds = self::getGameIdsByWeek($week, $year);
+
+        foreach ($gameIds as $gameId) {
+            $this->createGame($gameId);
+        }
+    }
+
+    public function createGame($gameId)
+    {
+        if (NflGame::where('external_id', $gameId)->exists()) {
+            
+        }
+
+        Log::info("Importing NFL game with external ID {$gameId}");
+        
+        $data = self::getGame($gameId);
+        
+        $isCompleted = $data['header']['competitions'][0]['status']['type']['completed'];
+
+        if (!$isCompleted) {
+            Log::info("The NFL game with external ID {$gameId} has not been completed");
+            return;
+        }
+        
+        try {
+            DB::beginTransaction();
+            
+            $awayTeamIndex = $data['boxscore']['teams'][0]['homeAway'] === 'away' ? 0 : 1;
+            $homeTeamIndex = $awayTeamIndex ? 0 : 1;
+
+            $awayTeamExternalId = $data['boxscore']['teams'][$awayTeamIndex]['team']['id'];
+            $homeTeamExternalId = $data['boxscore']['teams'][$homeTeamIndex]['team']['id'];
+
+            $teams = NflTeam::whereIn('external_id', [$awayTeamExternalId, $homeTeamExternalId])->get();
+
+            $awayTeam = $teams->firstWhere('external_id', $awayTeamExternalId);
+            $homeTeam = $teams->firstWhere('external_id', $homeTeamExternalId);
+
+            $game = NflGame::create([
+                'external_id' => $gameId,
+                'season' => $data['header']['season']['year'],
+                'week' => $data['header']['week'],
+                'played_at' => $data['meta']['firstPlayWallClock'],
+                'away_team_id' => $awayTeam->id,
+                'home_team_id' => $homeTeam->id,
+            ]);
+
+            
+            $this->createTeamStat($game, $awayTeam, $data);
+
+            $this->createTeamStat($game, $homeTeam, $data);
+            
+            DB::commmit();
+
+        } catch (\Throwable $th) {
+            DB::rollBack();
+
+            Log::warning("Fail to save NFL game with external ID {$gameId}");
+            throw $th;
+        }
+        
+    }
+
+
+    public function createTeamStat(NflGame $game, NflTeam $team, array $data)
+    {
+        $stats = $team->external_id == $data['boxscore']['players'][0]['team']['id']
+            ? $data['boxscore']['players'][0]['statistics']
+            : $data['boxscore']['players'][1]['statistics'];
+
+        $playerStats = $this->getPlayerStatFromStatistics($stats);
+
+        $players = NflPlayer::whereIn('external_id', array_keys($playerStats))->get();
+        
+        $playerStatInsertion = [];
+        
+        $teamStatInsertion = [
+            'passing_yards' => 0,
+            'pass_completions' => 0,
+            'pass_attempts' => 0,
+            'receiving_yards' => 0,
+            'rushing_yards' => 0,
+            'carries' => 0,
+            'sacks' => 0,
+            'tackles' => 0,
+        ];
+
+        foreach ($playerStats as $externalId => $playerStat) {
+            $player = $players->firstWhere('external_id', $externalId);
+
+            if (!$player) {
+                $player = NflPlayer::create([
+                    'external_id' => $externalId,
+                    'team_id' => $team->id,
+                    'first_name' => $playerStat['first_name'],
+                    'last_name' => $playerStat['last_name'],
+                ]);
+            }
+
+            $stats = [
+                'game_id' => $game->id,
+                'player_id' => $player->id,
+                'team_id' => $team->id,
+                'passing_yards' => $playerStat['passing_yards'],
+                'pass_completions' => $playerStat['pass_completions'],
+                'pass_attempts' => $playerStat['pass_attempts'],
+                'receiving_yards' => $playerStat['receiving_yards'],
+                'receptions' => $playerStat['receptions'],
+                'receiving_targets' => $playerStat['receiving_targets'],
+                'rushing_yards' => $playerStat['rushing_yards'],
+                'carries' => $playerStat['carries'],
+                'sacks' => $playerStat['sacks'],
+                'tackles' => $playerStat['tackles'],
+            ];
+
+            $playerStatInsertion[] = $stats;
+
+            // Sumar al acumulado del equipo
+            foreach ($teamStatInsertion as $key => $value) {
+                $teamStatInsertion[$key] += $stats[$key];
+            }
+        }
+
+        $teamScores = $data['header']['competitions'][0]['competitors'][0]['id'] === $team->external_id
+            ? $data['header']['competitions'][0]['competitors'][0]
+            : $data['header']['competitions'][0]['competitors'][1];
+
+        NflTeamStat::create([
+            'game_id' => $game->id,
+            'team_id' => $team->id,
+            'points_total' => (int) $teamScores['score'],
+            'points_q1' => (int) $teamScores['linescore'][0]['displayValue'],
+            'points_q2' => (int) $teamScores['linescore'][1]['displayValue'],
+            'points_q3' => (int) $teamScores['linescore'][2]['displayValue'],
+            'points_q4' => (int) $teamScores['linescore'][3]['displayValue'],
+            'points_ot' => (int) $teamScores['linescore'][4]['displayValue'],
+            'total_yards' => $teamStatInsertion['passing_yards'] + $teamStatInsertion['rushing_yards'],
+            'passing_yards' => $teamStatInsertion['passing_yards'],
+            'pass_completions' => $teamStatInsertion['pass_completions'],
+            'pass_attempts' => $teamStatInsertion['pass_attempts'],
+            'rushing_yards' => $teamStatInsertion['rushing_yards'],
+            'carries' => $teamStatInsertion['carries'],
+            'sacks' => $teamStatInsertion['sacks'],
+            'tackles' => $teamStatInsertion['tackles'],
+        ]);
+
+        
+    }
+
+    public function getPlayerStatFromStatistics(array $statTypes): array
+    {
+        $playerStats = [];
+
+        foreach ($statTypes as $statType) {
+            switch ($statType['name']) {
+                case 'passing':
+                    $this->getPlayerStatFromPassingStatistics($playerStats, $statType);
+                    break;
+
+                case 'rushing':
+                    $this->getPlayerStatFromRushingStatistics($playerStats, $statType);
+                    break;
+
+                case 'receiving':
+                    $this->getPlayerStatFromRushingStatistics($playerStats, $statType);
+                    break;
+
+                case 'receiving':
+                    $this->getPlayerStatFromDefensiveStatistics($playerStats, $statType);
+                    break;
+
+                default: 
+                    break;
+            }
+
+        }
+
+        return $playerStats;
+    }
+
+    public function getPlayerStatFromPassingStatistics(array &$playerStats, $data)
+    {
+        // KEYS = [0 => Completions/Attempts, 1 => yards]
+
+        foreach($data['athletes'] as $stat) {
+            $playerExternalId = $stat['athlete']['id'];
+            
+            $passes = explode('/', $stat['stats'][0]);
+
+            $playerStats[$playerExternalId]['passing_yards'] = $stat['stats'][1];
+            $playerStats[$playerExternalId]['pass_completions'] = $passes[0];
+            $playerStats[$playerExternalId]['pass_attempts'] = $passes[1];
+
+            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
+            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        }
+    }
+
+    public function getPlayerStatFromRushingStatistics(array &$playerStats, $data)
+    {
+        // KEYS = [0 => Rushing Attempts, 1 => yards]
+
+        foreach($data['athletes'] as $stat) {
+            $playerExternalId = $stat['athlete']['id'];
+
+            $playerStats[$playerExternalId]['rushing_yards'] = $stat['stats'][1];
+            $playerStats[$playerExternalId]['carries'] = $stat['stats'][0];
+
+            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
+            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        }
+    }
+
+    public function getPlayerStatFromReceivingStatistics(array &$playerStats, $data)
+    {
+        // KEYS = [0 => Receptions, 1 => Yards, 5 => Receiving Targets]
+
+        foreach($data['athletes'] as $stat) {
+            $playerExternalId = $stat['athlete']['id'];
+
+            $playerStats[$playerExternalId]['receiving_yards'] = $stat['stats'][1];
+            $playerStats[$playerExternalId]['receptions'] = $stat['stats'][0];
+            $playerStats[$playerExternalId]['receiving_targets'] = $stat['stats'][5];
+
+            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
+            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        }
+    }
+
+    public function getPlayerStatFromDefensiveStatistics(array &$playerStats, $data)
+    {
+        // KEYS = [0 => Tackles, 2 => Sacks]
+
+        foreach($data['athletes'] as $stat) {
+            $playerExternalId = $stat['athlete']['id'];
+
+            $playerStats[$playerExternalId]['sacks'] = $stat['stats'][2];
+            $playerStats[$playerExternalId]['tackles'] = $stat['stats'][0];
+
+            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
+            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        }
+    }
+
+    public function test()
+    {
+        /*
+        //RUTAS
+
+        // LISTADO EQUIPOS 
+        https://api.nfl.com/experience/v1/teams?season=2025
+
+        // LISTADO DE JUGACORES
+
+
+        // lISTADO DE JUEGOS POR SEMANA 
+        https://api.nfl.com/football/v2/stats/live/game-summaries?season=2024&seasonType=REG&week=1
+
+        // DETALLE DE LOS SCORES DE LOS EQUIPOS EN UN JUEGO
+        https://api.nfl.com/experience/v2/gamedetails/7d4019ca-1312-11ef-afd1-646009f18b2e?includeDriveChart=false&includeReplays=true&includeStandings=false&includeTaggedVideos=true
+
+        // DETALLE DEL SCORES DE LOS JUGADORES EN UN JUEGO
+        https://api.nfl.com/football/v2/stats/live/player-statistics/7d4019ca-1312-11ef-afd1-646009f18b2e
+
+
+        // LISTADO ALINEACIONES
+        */
+    }
+
+    public function data()
+    {
+
+    }
+
+
+}
