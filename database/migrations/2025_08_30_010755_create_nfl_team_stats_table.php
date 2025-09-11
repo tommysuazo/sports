@@ -24,7 +24,7 @@ return new class extends Migration
             $table->integer('points_q2')->default(0);
             $table->integer('points_q3')->default(0);
             $table->integer('points_q4')->default(0);
-            $table->integer('points_ot')->default(0);
+            $table->integer('points_ot')->nullable();
 
             // Ofensiva
             $table->integer('total_yards')->nullable();

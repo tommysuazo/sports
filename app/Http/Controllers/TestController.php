@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\NbaExternalService;
 use App\Services\NbaStatsService;
 use App\Services\NflExternalService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -14,13 +15,24 @@ class TestController extends Controller
 
     public function __invoke()
     {
+        $request = Http::get("https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=259322&statistic=Passing%2520Yards");
 
-        $data = NflExternalService::getGame('401671789');
+        dd(empty($request->json()));
+
+        $teams = [];
+
+        foreach ($data as $game) {
+            $teams[$game['team1'][0]['abbreviation']] = $game['team1'][0]['providers'][0]['id'];
+            $teams[$game['team2'][0]['abbreviation']] = $game['team2'][0]['providers'][0]['id'];
+        }
+        
+        return $teams;
+
+        // $data = NflExternalService::getGame('401671813');
 
 
-        $result = $data['header']['competitions'][0]['competitors'];
-
-        return $result;
+        // $result = Carbon::parse($data['drives']['previous'][0]['plays'][0]['wallclock']);
+        // return $result;
 
         
 

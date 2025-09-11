@@ -119,7 +119,7 @@ class NflExternalService
                 'external_id' => $gameId,
                 'season' => $data['header']['season']['year'],
                 'week' => $data['header']['week'],
-                'played_at' => $data['meta']['firstPlayWallClock'],
+                'played_at' => Carbon::parse($data['meta']['firstPlayWallClock'] ?? $data['drives']['previous'][0]['plays'][0]['wallclock']),
                 'away_team_id' => $awayTeam->id,
                 'home_team_id' => $homeTeam->id,
             ]);
@@ -129,7 +129,7 @@ class NflExternalService
 
             $this->createTeamStat($game, $homeTeam, $data);
             
-            DB::commmit();
+            DB::commit();
 
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -180,16 +180,16 @@ class NflExternalService
                 'game_id' => $game->id,
                 'player_id' => $player->id,
                 'team_id' => $team->id,
-                'passing_yards' => $playerStat['passing_yards'],
-                'pass_completions' => $playerStat['pass_completions'],
-                'pass_attempts' => $playerStat['pass_attempts'],
-                'receiving_yards' => $playerStat['receiving_yards'],
-                'receptions' => $playerStat['receptions'],
-                'receiving_targets' => $playerStat['receiving_targets'],
-                'rushing_yards' => $playerStat['rushing_yards'],
-                'carries' => $playerStat['carries'],
-                'sacks' => $playerStat['sacks'],
-                'tackles' => $playerStat['tackles'],
+                'passing_yards' => $playerStat['passing_yards'] ?? 0,
+                'pass_completions' => $playerStat['pass_completions'] ?? 0,
+                'pass_attempts' => $playerStat['pass_attempts'] ?? 0,
+                'receiving_yards' => $playerStat['receiving_yards'] ?? 0,
+                'receptions' => $playerStat['receptions'] ?? 0,
+                'receiving_targets' => $playerStat['receiving_targets'] ?? 0,
+                'rushing_yards' => $playerStat['rushing_yards'] ?? 0,
+                'carries' => $playerStat['carries'] ?? 0,
+                'sacks' => $playerStat['sacks'] ?? 0,
+                'tackles' => $playerStat['tackles'] ?? 0,
             ];
 
             $playerStatInsertion[] = $stats;
@@ -208,11 +208,11 @@ class NflExternalService
             'game_id' => $game->id,
             'team_id' => $team->id,
             'points_total' => (int) $teamScores['score'],
-            'points_q1' => (int) $teamScores['linescore'][0]['displayValue'],
-            'points_q2' => (int) $teamScores['linescore'][1]['displayValue'],
-            'points_q3' => (int) $teamScores['linescore'][2]['displayValue'],
-            'points_q4' => (int) $teamScores['linescore'][3]['displayValue'],
-            'points_ot' => (int) $teamScores['linescore'][4]['displayValue'],
+            'points_q1' => (int) $teamScores['linescores'][0]['displayValue'],
+            'points_q2' => (int) $teamScores['linescores'][1]['displayValue'],
+            'points_q3' => (int) $teamScores['linescores'][2]['displayValue'],
+            'points_q4' => (int) $teamScores['linescores'][3]['displayValue'],
+            'points_ot' => isset($teamScores['linescores'][4]) ? (int) $teamScores['linescores'][4]['displayValue'] : null,
             'total_yards' => $teamStatInsertion['passing_yards'] + $teamStatInsertion['rushing_yards'],
             'passing_yards' => $teamStatInsertion['passing_yards'],
             'pass_completions' => $teamStatInsertion['pass_completions'],
