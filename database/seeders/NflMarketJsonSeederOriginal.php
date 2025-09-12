@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
-class NflMarketJsonSeeder extends Seeder
+class NflMarketJsonSeederOriginal extends Seeder
 {
     /**
      * URLs iniciales para obtener los game IDs
