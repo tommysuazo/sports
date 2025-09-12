@@ -127,7 +127,7 @@ class NflMarketJsonSeeder extends Seeder
         // FASE 2: Procesar datos específicos por juego
         $this->processGameSpecificUrls($gameIds);
 
-        $totalRecords = DB::table('nfl_market_json')->count();
+        $totalRecords = DB::table('nfl_markets')->count();
         $this->command->info("=== SEEDING COMPLETADO ===");
         $this->command->info("Total de registros en la base de datos: {$totalRecords}");
         Log::info("Seeding completado. Total de registros: {$totalRecords}");
@@ -276,13 +276,13 @@ class NflMarketJsonSeeder extends Seeder
                         }
                         
                         // Verificar si ya existe un registro con esta URL
-                        $existingRecord = DB::table('nfl_market_json')
+                        $existingRecord = DB::table('nfl_markets')
                             ->where('url', $url)
                             ->first();
                         
                         if ($existingRecord) {
                             // Actualizar registro existente
-                            DB::table('nfl_market_json')
+                            DB::table('nfl_markets')
                                 ->where('url', $url)
                                 ->update([
                                     'body' => json_encode($jsonData),
@@ -299,7 +299,7 @@ class NflMarketJsonSeeder extends Seeder
                             $globalUpdatedCount++;
                         } else {
                             // Crear nuevo registro
-                            DB::table('nfl_market_json')
+                            DB::table('nfl_markets')
                                 ->insert([
                                     'game_id' => $gameId,
                                     'url' => $url,
