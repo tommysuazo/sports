@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\Locality\LocalityEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -17,6 +16,7 @@ return new class extends Migration
             $table->foreignId('game_id')->constrained('nba_games');
             $table->foreignId('team_id')->constrained('nba_teams');
             $table->foreignId('player_id')->constrained('nba_players');
+            $table->boolean('is_away');
             $table->boolean('is_starter');
             $table->string('mins', 6);
             $table->unsignedTinyInteger('points');

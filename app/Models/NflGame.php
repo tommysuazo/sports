@@ -11,15 +11,18 @@ class NflGame extends Model
 
     protected $fillable = [
         'external_id',
+        'market_id',
         'season',
         'week',
         'played_at',
+        'is_completed',
         'home_team_id',
         'away_team_id',
     ];
 
     protected $casts = [
         'played_at' => 'date',
+        'is_completed' => 'boolean',
     ];
 
     public function homeTeam()
@@ -33,6 +36,11 @@ class NflGame extends Model
     }
 
     public function scores()
+    {
+        return $this->hasMany(NflTeamStat::class, 'game_id');
+    }
+
+    public function teamStats()
     {
         return $this->hasMany(NflTeamStat::class, 'game_id');
     }

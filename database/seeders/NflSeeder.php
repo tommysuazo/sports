@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
 use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Services\NflExternalService;
@@ -37,8 +38,8 @@ class NflSeeder extends Seeder
                 $teams[$team['id']] = NflTeam::updateOrCreate(
                     ['external_id' => $team['id']], // Evita duplicados
                     [
-                        // 'market_id' => $team['uid'] ?? null,
-                        'code' => $team['abbreviation'] ?? null,
+                        'market_id' => DigitalSportsTechNflEnum::getTeamId($team['abbreviation']),
+                        'code' => $team['abbreviation'],
                         'name' => $team['name'] ?? null,
                         'city' => $team['location'] ?? null,
                     ]

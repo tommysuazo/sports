@@ -86,8 +86,11 @@ class NflExternalService
 
     public function createGame($gameId)
     {
-        if (NflGame::where('external_id', $gameId)->exists()) {
-            
+        $game = NflGame::where('external_id', $gameId)->withCount('teamStats')->first();
+
+        if ($game && $game->team_stats_count > 0) {
+            Log::info("NFL game {$gameId} already has team stats. Skipping.");
+            return $game;
         }
 
         Log::info("Importing NFL game with external ID {$gameId}");
@@ -96,11 +99,6 @@ class NflExternalService
         
         $isCompleted = $data['header']['competitions'][0]['status']['type']['completed'];
 
-        if (!$isCompleted) {
-            Log::info("The NFL game with external ID {$gameId} has not been completed");
-            return;
-        }
-        
         try {
             DB::beginTransaction();
             
@@ -115,16 +113,29 @@ class NflExternalService
             $awayTeam = $teams->firstWhere('external_id', $awayTeamExternalId);
             $homeTeam = $teams->firstWhere('external_id', $homeTeamExternalId);
 
-            $game = NflGame::create([
-                'external_id' => $gameId,
-                'season' => $data['header']['season']['year'],
-                'week' => $data['header']['week'],
-                'played_at' => Carbon::parse($data['meta']['firstPlayWallClock'] ?? $data['drives']['previous'][0]['plays'][0]['wallclock']),
-                'away_team_id' => $awayTeam->id,
-                'home_team_id' => $homeTeam->id,
-            ]);
 
+            if ($game) {
+                $game->is_completed = $isCompleted;
+                $game->save();
             
+            } else {
+                $game = NflGame::create([
+                    'external_id' => $gameId,
+                    'season' => $data['header']['season']['year'],
+                    'week' => $data['header']['week'],
+                    'played_at' => Carbon::parse($data['header']['competitions'][0]['date']),
+                    'away_team_id' => $awayTeam->id,
+                    'home_team_id' => $homeTeam->id,
+                    'is_completed' => $isCompleted,
+                ]);
+            }
+
+            if (!$isCompleted) {
+                Log::info("The NFL game with external ID {$gameId} has not been completed. Stored header only.");
+                DB::commit();
+                return $game;
+            }
+
             $this->createTeamStat($game, $awayTeam, $data);
 
             $this->createTeamStat($game, $homeTeam, $data);
@@ -137,12 +148,17 @@ class NflExternalService
             Log::warning("Fail to save NFL game with external ID {$gameId}");
             throw $th;
         }
-        
+
+        return $game;
     }
 
 
     public function createTeamStat(NflGame $game, NflTeam $team, array $data)
     {
+        $isAway = $team->external_id == $data['boxscore']['teams'][0]['team']['id']
+            ? $data['boxscore']['teams'][0]['homeAway'] === 'away'
+            : $data['boxscore']['teams'][1]['homeAway'] === 'away';
+
         $stats = $team->external_id == $data['boxscore']['players'][0]['team']['id']
             ? $data['boxscore']['players'][0]['statistics']
             : $data['boxscore']['players'][1]['statistics'];
@@ -180,6 +196,7 @@ class NflExternalService
                 'game_id' => $game->id,
                 'player_id' => $player->id,
                 'team_id' => $team->id,
+                'is_away' => $isAway,
                 'passing_yards' => $playerStat['passing_yards'] ?? 0,
                 'pass_completions' => $playerStat['pass_completions'] ?? 0,
                 'pass_attempts' => $playerStat['pass_attempts'] ?? 0,
@@ -200,6 +217,8 @@ class NflExternalService
             }
         }
 
+        NflPlayerStat::insert($playerStatInsertion);
+
         $teamScores = $data['header']['competitions'][0]['competitors'][0]['id'] === $team->external_id
             ? $data['header']['competitions'][0]['competitors'][0]
             : $data['header']['competitions'][0]['competitors'][1];
@@ -207,6 +226,7 @@ class NflExternalService
         NflTeamStat::create([
             'game_id' => $game->id,
             'team_id' => $team->id,
+            'is_away' => $isAway,
             'points_total' => (int) $teamScores['score'],
             'points_q1' => (int) $teamScores['linescores'][0]['displayValue'],
             'points_q2' => (int) $teamScores['linescores'][1]['displayValue'],

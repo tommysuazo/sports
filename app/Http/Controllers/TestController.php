@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
+use App\Models\NflTeam;
 use App\Services\NbaExternalService;
 use App\Services\NbaStatsService;
 use App\Services\NflExternalService;
@@ -15,18 +17,23 @@ class TestController extends Controller
 
     public function __invoke()
     {
-        $request = Http::get("https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=259322&statistic=Passing%2520Yards");
+        // foreach (DigitalSportsTechNflEnum::getTeamIds() as $code => $marketId) {
+        //     NflTeam::where('code', $code)->update(['market_id' => $marketId]);
+        // }
 
-        dd(empty($request->json()));
+        // return 'ok';
+        // $request = Http::get("https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=259322&statistic=Passing%2520Yards");
 
-        $teams = [];
+        // dd(empty($request->json()));
 
-        foreach ($data as $game) {
-            $teams[$game['team1'][0]['abbreviation']] = $game['team1'][0]['providers'][0]['id'];
-            $teams[$game['team2'][0]['abbreviation']] = $game['team2'][0]['providers'][0]['id'];
-        }
+        // $teams = [];
+
+        // foreach ($data as $game) {
+        //     $teams[$game['team1'][0]['abbreviation']] = $game['team1'][0]['providers'][0]['id'];
+        //     $teams[$game['team2'][0]['abbreviation']] = $game['team2'][0]['providers'][0]['id'];
+        // }
         
-        return $teams;
+        // return $teams;
 
         // $data = NflExternalService::getGame('401671813');
 
@@ -43,16 +50,16 @@ class TestController extends Controller
 
         // return $request->json();
 
-        $request = Http::withHeaders([
-            'authorization' => 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjbGllbnRJZCI6ImU1MzVjN2MwLTgxN2YtNDc3Ni04OTkwLTU2NTU2ZjhiMTkyOCIsImNsaWVudEtleSI6IjRjRlVXNkRtd0pwelQ5TDdMckczcVJBY0FCRzVzMDRnIiwiZGV2aWNlSWQiOiJjODUxNTZjZS04NDg3LTRhNDMtYTJlYy1hYjIyMWZkZDk4NTEiLCJpc3MiOiJORkwiLCJwbGFucyI6W3sicGxhbiI6ImZyZWUiLCJleHBpcmF0aW9uRGF0ZSI6IjIwMjYtMDktMDEiLCJzb3VyY2UiOiJORkwiLCJzdGFydERhdGUiOiIyMDI1LTA5LTAxIiwic3RhdHVzIjoiQUNUSVZFIiwidHJpYWwiOmZhbHNlfV0sIkRpc3BsYXlOYW1lIjoiV0VCX0RFU0tUT1BfREVTS1RPUCIsIk5vdGVzIjoiIiwiZm9ybUZhY3RvciI6IkRFU0tUT1AiLCJsdXJhQXBwS2V5IjoiU1pzNTdkQkdSeGJMNzI4bFZwN0RZUSIsInBsYXRmb3JtIjoiREVTS1RPUCIsInByb2R1Y3ROYW1lIjoiV0VCIiwicm9sZXMiOlsiY29udGVudCIsImV4cGVyaWVuY2UiLCJmb290YmFsbCIsInV0aWxpdGllcyIsInRlYW1zIiwicGxheSIsImxpdmUiLCJpZGVudGl0eSIsIm5nc19zdGF0cyIsInBheW1lbnRzX2FwaSIsIm5nc190cmFja2luZyIsIm5nc19wbGF0Zm9ybSIsIm5nc19jb250ZW50IiwibmdzX2NvbWJpbmUiLCJuZ3NfYWR2YW5jZWRfc3RhdHMiLCJuZmxfcHJvIiwiZWNvbW0iLCJuZmxfaWRfYXBpIiwidXRpbGl0aWVzX2xvY2F0aW9uIiwiaWRlbnRpdHlfb2lkYyIsIm5nc19zc2UiLCJhY2NvdW50cyIsImNvbnNlbnRzIiwic3ViX3BhcnRuZXJzaGlwcyIsImNvbmN1cnJlbmN5Iiwia2V5c3RvcmUiLCJmcmVlIl0sIm5ldHdvcmtUeXBlIjoib3RoZXIiLCJjaXR5Ijoic2FuIGlzaWRybyIsImNvdW50cnlDb2RlIjoiRE8iLCJkbWFDb2RlIjoiLTEiLCJobWFUZWFtcyI6W10sInJlZ2lvbiI6IjMyIiwiemlwQ29kZSI6IjExNTAwIiwiYnJvd3NlciI6IkNocm9tZSIsImNlbGx1bGFyIjp0cnVlLCJlbnZpcm9ubWVudCI6InByb2R1Y3Rpb24iLCJleHAiOjE3NTY2OTk5MDV9.5xQVH4GHpJN4FOrBvKl_uc554FQ_xXfYoTciqx1fow8',
-        ])
-        ->get(
-            // 'https://api.nfl.com/football/v2/players'
-            'https://api.nfl.com/experience/v1'
-            // 'https://api.nfl.com/football/v2/stats/live/player-statistics/7d40236a-1312-11ef-afd1-646009f18b2e'
-        );
+        // $request = Http::withHeaders([
+        //     'authorization' => 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjbGllbnRJZCI6ImU1MzVjN2MwLTgxN2YtNDc3Ni04OTkwLTU2NTU2ZjhiMTkyOCIsImNsaWVudEtleSI6IjRjRlVXNkRtd0pwelQ5TDdMckczcVJBY0FCRzVzMDRnIiwiZGV2aWNlSWQiOiJjODUxNTZjZS04NDg3LTRhNDMtYTJlYy1hYjIyMWZkZDk4NTEiLCJpc3MiOiJORkwiLCJwbGFucyI6W3sicGxhbiI6ImZyZWUiLCJleHBpcmF0aW9uRGF0ZSI6IjIwMjYtMDktMDEiLCJzb3VyY2UiOiJORkwiLCJzdGFydERhdGUiOiIyMDI1LTA5LTAxIiwic3RhdHVzIjoiQUNUSVZFIiwidHJpYWwiOmZhbHNlfV0sIkRpc3BsYXlOYW1lIjoiV0VCX0RFU0tUT1BfREVTS1RPUCIsIk5vdGVzIjoiIiwiZm9ybUZhY3RvciI6IkRFU0tUT1AiLCJsdXJhQXBwS2V5IjoiU1pzNTdkQkdSeGJMNzI4bFZwN0RZUSIsInBsYXRmb3JtIjoiREVTS1RPUCIsInByb2R1Y3ROYW1lIjoiV0VCIiwicm9sZXMiOlsiY29udGVudCIsImV4cGVyaWVuY2UiLCJmb290YmFsbCIsInV0aWxpdGllcyIsInRlYW1zIiwicGxheSIsImxpdmUiLCJpZGVudGl0eSIsIm5nc19zdGF0cyIsInBheW1lbnRzX2FwaSIsIm5nc190cmFja2luZyIsIm5nc19wbGF0Zm9ybSIsIm5nc19jb250ZW50IiwibmdzX2NvbWJpbmUiLCJuZ3NfYWR2YW5jZWRfc3RhdHMiLCJuZmxfcHJvIiwiZWNvbW0iLCJuZmxfaWRfYXBpIiwidXRpbGl0aWVzX2xvY2F0aW9uIiwiaWRlbnRpdHlfb2lkYyIsIm5nc19zc2UiLCJhY2NvdW50cyIsImNvbnNlbnRzIiwic3ViX3BhcnRuZXJzaGlwcyIsImNvbmN1cnJlbmN5Iiwia2V5c3RvcmUiLCJmcmVlIl0sIm5ldHdvcmtUeXBlIjoib3RoZXIiLCJjaXR5Ijoic2FuIGlzaWRybyIsImNvdW50cnlDb2RlIjoiRE8iLCJkbWFDb2RlIjoiLTEiLCJobWFUZWFtcyI6W10sInJlZ2lvbiI6IjMyIiwiemlwQ29kZSI6IjExNTAwIiwiYnJvd3NlciI6IkNocm9tZSIsImNlbGx1bGFyIjp0cnVlLCJlbnZpcm9ubWVudCI6InByb2R1Y3Rpb24iLCJleHAiOjE3NTY2OTk5MDV9.5xQVH4GHpJN4FOrBvKl_uc554FQ_xXfYoTciqx1fow8',
+        // ])
+        // ->get(
+        //     // 'https://api.nfl.com/football/v2/players'
+        //     'https://api.nfl.com/experience/v1'
+        //     // 'https://api.nfl.com/football/v2/stats/live/player-statistics/7d40236a-1312-11ef-afd1-646009f18b2e'
+        // );
         
-        return $request->json();
+        // return $request->json();
 
         /*
 

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('game_id')->constrained('nfl_games');
             $table->foreignId('player_id')->constrained('nfl_players');
             $table->foreignId('team_id')->constrained('nfl_teams');
+            $table->boolean('is_away');
 
             // Ofensiva
             $table->integer('total_yards')->nullable();

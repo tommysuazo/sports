@@ -14,11 +14,13 @@ return new class extends Migration
         Schema::create('nfl_games', function (Blueprint $table) {
             $table->id();
             $table->string('external_id');
+            $table->string('market_id')->nullable();
             $table->integer('season');
             $table->integer('week');
             $table->date('played_at');
-            $table->foreignId('away_team_id')->nullable()->constrained('nfl_teams');
-            $table->foreignId('home_team_id')->nullable()->constrained('nfl_teams');
+            $table->boolean('is_completed');
+            $table->foreignId('away_team_id')->constrained('nfl_teams');
+            $table->foreignId('home_team_id')->constrained('nfl_teams');
             $table->timestamps();
         });
     }

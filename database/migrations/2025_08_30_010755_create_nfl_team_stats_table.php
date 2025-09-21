@@ -17,6 +17,7 @@ return new class extends Migration
             // Relaciones
             $table->foreignId('game_id')->constrained('nfl_games');
             $table->foreignId('team_id')->constrained('nfl_teams');
+            $table->boolean('is_away');
 
             // Puntuación
             $table->integer('points_total')->default(0);

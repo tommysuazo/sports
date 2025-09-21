@@ -12,6 +12,7 @@ class NflTeamStat extends Model
     protected $fillable = [
         'game_id',
         'team_id',
+        'is_away',
         'points_total',
         'points_q1',
         'points_q2',

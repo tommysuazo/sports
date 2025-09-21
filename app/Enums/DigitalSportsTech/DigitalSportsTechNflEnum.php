@@ -69,7 +69,7 @@ enum DigitalSportsTechNflEnum: string
             "SF"  => 4430,
             "TB"  => 4438,
             "TEN" => 4421,
-            "WAS" => 4427,
+            "WSH" => 4427,
         ];
     }
 
