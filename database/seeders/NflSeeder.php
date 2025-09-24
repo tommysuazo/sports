@@ -6,6 +6,7 @@ use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
 use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Services\NflExternalService;
+use App\Services\NflMarketService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Log;
@@ -77,5 +78,7 @@ class NflSeeder extends Seeder
                 }
             }
         }
+
+        resolve(NflMarketService::class)->syncPlayers();
     }
 }

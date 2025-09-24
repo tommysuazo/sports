@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
-class WnbaPlayerScore extends BasketballPlayerScore
+use Illuminate\Database\Eloquent\Model;
+
+class WnbaPlayerScore extends Model
 {
     public function player()
     {

@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
+use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Services\NbaExternalService;
 use App\Services\NbaStatsService;
 use App\Services\NflExternalService;
+use App\Services\NflMarketService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class TestController extends Controller
 {
@@ -17,11 +20,102 @@ class TestController extends Controller
 
     public function __invoke()
     {
+        // $teams = NflTeam::with('players')->get();
+
+        // foreach ($teams as $team) {
+        //     Log::info("Procesando equipo {$team->name}");
+        //     $players = $team->players;
+
+        //     $marketPlayers = Http::get("https://bv2-us.digitalsportstech.com/api/player?leagueId=142&teamId={$team->market_id}");
+
+        //     $marketPlayers = collect($marketPlayers->json())->map(fn ($player) => collect($player));
+
+        //     $activePlayers = $marketPlayers->where('isActive', true);
+            
+        //     $inactivePlayers = $marketPlayers->where('isActive', false);
+
+        //     foreach($activePlayers as $marketPlayer) {
+        //         Log::info("Procesando jugador de MERCADO con nombre {$marketPlayer['name']} en {$team->name}");
+
+        //         $player = $players->first(fn ($p) => $p->full_name === $marketPlayer['name']);
+                
+        //         if (!$player) {
+        //             $name = explode(' ', $marketPlayer['name']);
+
+        //             $player = $players->filter(
+        //                 fn($player) => $player->first_name === $name[0] && strpos($player->last_name, substr($name[1], 0, 3)) === 0
+        //             )->first();
+
+        //             if (!$player) {
+        //                 $player = $players->filter(
+        //                     fn($player) => $player->last_name === $name[1] && strpos($player->first_name, substr($name[0], 0, 3)) === 0
+        //                 )->first();
+        //             }
+        //         }
+
+        //         if ($player) {
+        //             $player->update(['market_id' => $marketPlayer['id']]);
+        //             $player->market_id = $marketPlayer['id'];
+
+        //         } elseif (!$player) {
+        //             Log::info("No se encontró jugador para {$marketPlayer['name']} en {$team->name}");
+        //         }
+        //     }
+
+        //     foreach($players->whereNull('market_id') as $player) {
+        //         Log::info("Procesando jugador EXTERNAL con nombre {$player->full_name} en {$team->name}");
+
+        //         $marketPlayer = $inactivePlayers->first(fn ($mp) => $mp['name'] === $player->full_name);
+
+        //         if ($marketPlayer) {
+        //             Log::info("Encontrado jugador inactivo en mercado para {$player->full_name} en {$team->name}");
+        //         }
+                
+        //         if (!$marketPlayer) {
+        //             $marketPlayer = $inactivePlayers->filter(function($mp) use ($player) {
+        //                 $name = explode(' ', $mp['name']);
+        //                 return $player->first_name === $name[0] && strpos($player->last_name, substr($name[1], 0, 3)) === 0;
+        //             })->first();
+
+        //             if (!$marketPlayer) {
+        //                 $marketPlayer = $inactivePlayers->filter(function($mp) use ($player) {
+        //                     $name = explode(' ', $mp['name']);
+        //                     return $player->last_name === $name[0] && strpos($player->first_name, substr($name[1], 0, 3)) === 0;
+        //                 })->first();
+        //             }
+        //         }
+
+        //         if ($marketPlayer && !$player->market_id) {
+        //             $player->update(['market_id' => $marketPlayer['id']]);
+        //         } elseif (!$marketPlayer) {
+        //             Log::info("No se encontró jugador para {$player->full_name} en {$team->name}");
+        //         }
+        //     }
+        // }
+
+        // return 'verifica';
+
+        
+
+        // $data = collect($request->json())->map(fn ($player) => collect($player));
+
+        // $activePlayers = $data->where('isActive', true);
+        
+        // $inactivePlayers = $data->where('isActive', false);
+
+
+
+        // dd($data);
+
+        // return $request->json();
+        
+        
         // foreach (DigitalSportsTechNflEnum::getTeamIds() as $code => $marketId) {
         //     NflTeam::where('code', $code)->update(['market_id' => $marketId]);
         // }
 
         // return 'ok';
+        
         // $request = Http::get("https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=259322&statistic=Passing%2520Yards");
 
         // dd(empty($request->json()));
