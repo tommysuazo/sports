@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
+use App\Enums\NflWeekEnum;
+use App\Models\NflGame;
 use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Services\NbaExternalService;
@@ -20,6 +22,13 @@ class TestController extends Controller
 
     public function __invoke()
     {
+        // resolve(NflMarketService::class)->syncMarkets();
+
+        return resolve(NflMarketService::class)->getMatchups(NflWeekEnum::WEEK_4);
+        
+        return NflGame::with(['homeTeam', 'awayTeam', 'markets', 'playerMarkets',])->where('week', 4)->get();
+
+        return 'ok';
         // $teams = NflTeam::with('players')->get();
 
         // foreach ($teams as $team) {

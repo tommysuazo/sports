@@ -44,4 +44,9 @@ class NflPlayerStat extends Model
     {
         return $this->belongsTo(NflTeam::class, 'team_id');
     }
+
+    public function markets()
+    {
+        return $this->hasOne(NflPlayerMarket::class, 'game_id', 'game_id');
+    }
 }

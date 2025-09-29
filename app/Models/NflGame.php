@@ -49,4 +49,14 @@ class NflGame extends Model
     {
         return $this->hasMany(NflPlayerStat::class, 'game_id');
     }
+
+    public function markets()
+    {
+        return $this->hasOne(NflGameMarket::class, 'game_id');
+    }
+
+    public function playerMarkets()
+    {
+        return $this->hasMany(NflPlayerMarket::class, 'game_id');
+    }
 }

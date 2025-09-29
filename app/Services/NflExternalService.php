@@ -261,14 +261,14 @@ class NflExternalService
                     break;
 
                 case 'receiving':
-                    $this->getPlayerStatFromRushingStatistics($playerStats, $statType);
+                    $this->getPlayerStatFromReceivingStatistics($playerStats, $statType);
                     break;
 
-                case 'receiving':
+                case 'defensive':
                     $this->getPlayerStatFromDefensiveStatistics($playerStats, $statType);
                     break;
 
-                default: 
+                default:
                     break;
             }
 

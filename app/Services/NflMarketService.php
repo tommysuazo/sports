@@ -2,14 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\NflWeekEnum;
 use App\Models\NflGame;
 use App\Models\NflGameMarket;
 use App\Models\NflPlayer;
 use App\Models\NflPlayerMarket;
 use App\Models\NflTeam;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 
 class NflMarketService
 {
@@ -25,46 +26,71 @@ class NflMarketService
         'Sacks' => 'sacks',
     ];
 
+    private const DISCOVERY_STATISTICS = [
+        'Passing Yards',
+        'Pass Completions',
+        'Pass Attempts',
+        'Rushing Yards',
+        'Carries',
+        'Receiving Yards',
+        'Receptions',
+        'Tackles',
+        'Sacks',
+    ];
+
+    private const PLAYER_GAMES_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/dfm/gamesByOu';
+    private const PLAYER_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu';
+    private const TEAM_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped';
+    private const SPORTSBOOK_ALIAS = 'juancito';
+
     public function __construct(
     ) {
     }
 
-    public function getMatchups()
+    
+
+    public function getLiveMarkets(): Collection
     {
-        // $cacheKey = now()->toDateString();
+        return NflGame::with(['homeTeam', 'awayTeam', 'markets', 'playerMarkets',])->where('week', NflWeekEnum::current())->get();
+    }
 
-        // $matchups = false; 
-        // // $matchups = Cache::tags('matchups')->get($cacheKey);
+    public function getMatchups(?NflWeekEnum $week = null): Collection
+    {
+        $targetWeek = $week ?? NflWeekEnum::current();
 
-        // if ($matchups) {
-        //     return $matchups;
-        // } else {
-        //     $lineups = collect($this->nbaExternalService->getTodayLineups());
+        if (!$targetWeek) {
+            Log::warning('No se pudo determinar la semana actual de la NFL para obtener enfrentamientos');
+            return collect();
+        }
 
-        //     $games = $lineups->map(fn($game) => [
-        //         'homeTeamId' => $game->homeTeam->teamId,
-        //         'awayTeamId' => $game->awayTeam->teamId,
-        //     ]);
-
-        //     $awayTeamIds = $games->map(fn($game) => $game['awayTeamId'])->toArray();
-        //     $awayTeams = $this->nbaTeamRepository->getTeamsDataForMatchups($awayTeamIds, false);
-
-        //     $homeTeamIds = $games->map(fn($game) => $game['homeTeamId'])->toArray();
-        //     $homeTeams = $this->nbaTeamRepository->getTeamsDataForMatchups($homeTeamIds);
-
-        //     $matchups = $games->mapWithKeys(function ($game) use ($awayTeams, $homeTeams) {
-        //         $homeTeam = $homeTeams->firstWhere('external_id', $game['homeTeamId']);
-                
-        //         return [
-        //             $homeTeam->market_id => [
-        //                 'away_team' => $awayTeams->firstWhere('external_id', $game['awayTeamId']),
-        //                 'home_team' => $homeTeam,
-        //             ]
-        //         ];
-        //     });
-        // }
-
-        // return $matchups;
+        return NflGame::query()
+            ->with([
+                'awayTeam' => function ($query) {
+                    $query->with([
+                        'players' => function ($playerQuery) {
+                            $playerQuery->whereNotNull('nfl_players.market_id')
+                                ->with(['stats' => function ($scoreQuery) {
+                                    $scoreQuery->take(5)->orderByDesc('nfl_player_stats.game_id');
+                                }]);
+                        }
+                    ]);
+                },
+                'homeTeam' => function ($query) {
+                    $query->with([
+                        'players' => function ($playerQuery) {
+                            $playerQuery->whereNotNull('nfl_players.market_id')
+                                ->with(['stats' => function ($scoreQuery) {
+                                    $scoreQuery->take(5)->orderByDesc('nfl_player_stats.game_id');
+                                }]);
+                        }
+                    ]);
+                },
+            ])
+            ->where('season', $targetWeek->seasonYear())
+            ->whereBetween('played_at', [$targetWeek->startDate(), $targetWeek->endDate()])
+            ->orderBy('played_at')
+            ->where('is_completed', false)
+            ->get();
     }
 
     public function syncPlayers()
@@ -143,233 +169,352 @@ class NflMarketService
         }
     }
 
-    public function syncTeamMarkets(): void
+    public function syncMarkets(?string $marketId = null): void
     {
-        $prefix = 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped?sb=juancito&gameId=';
+        $gameIds = $marketId ? [$marketId] : $this->fetchAllGameIds();
 
-        $markets = DB::connection('markets')
-            ->table('nfl_markets')
-            ->where('url', 'like', $prefix . '%')
-            ->orderBy('game_id')
-            ->get();
-
-        foreach ($markets as $marketRecord) {
-            $gameId = $marketRecord->game_id;
-            $payload = json_decode($marketRecord->body, true);
-
-            if (!is_array($payload)) {
-                Log::warning('NFL market inválido: JSON no parseable', ['game_id' => $gameId]);
-                continue;
-            }
-
-            $toWin = collect($payload)->firstWhere('statistic', 'to win');
-
-            if (empty($toWin['markets'])) {
-                Log::warning('Mercado sin estadística to win', ['game_id' => $gameId]);
-                continue;
-            }
-
-            $gameInfo = $this->extractGameInfo($toWin['markets']);
-
-            if (!$gameInfo) {
-                Log::warning('Mercado sin información de equipos', ['game_id' => $gameId]);
-                continue;
-            }
-
-            [$homeMarketId, $awayMarketId] = $gameInfo;
-
-            $homeTeam = NflTeam::where('market_id', $homeMarketId)->first();
-            $awayTeam = NflTeam::where('market_id', $awayMarketId)->first();
-
-            if (!$homeTeam || !$awayTeam) {
-                Log::warning('No se encontraron equipos para mercado', [
-                    'game_id' => $gameId,
-                    'home_market_id' => $homeMarketId,
-                    'away_market_id' => $awayMarketId,
-                ]);
-                continue;
-            }
-
-            $game = NflGame::where('home_team_id', $homeTeam->id)
-                ->where('away_team_id', $awayTeam->id)
-                ->whereNull('market_id')
-                ->first();
-
-            if (!$game) {
-                Log::warning('Mercado sin juego asociado', [
-                    'game_id' => $gameId,
-                    'home_team_id' => $homeTeam->id,
-                    'away_team_id' => $awayTeam->id,
-                ]);
-                continue;
-            }
-
-            $game->update(['market_id' => $gameId]);
-            
-            $favoriteTeamId = $this->determineFavoriteTeamId($toWin['markets'], $homeTeam->id, $awayTeam->id);
-
-            $handicap = $this->normalizeHandicapValue($this->extractPrincipalValue($payload, 'handicap win'));
-            $totalPoints = $this->extractPrincipalValue($payload, 'total points');
-            $firstHalfHandicap = $this->normalizeHandicapValue($this->extractPrincipalValue($payload, '1st half handicap win'));
-            $firstHalfPoints = $this->extractPrincipalValue($payload, '1st half total points');
-            $awaySoloPoints = $this->extractPrincipalValue($payload, 'away team total points');
-            $homeSoloPoints = $this->extractPrincipalValue($payload, 'home team total points');
-
-            NflGameMarket::updateOrCreate(
-                ['game_id' => $game->id],
-                [
-                    'favorite_team_id' => $favoriteTeamId,
-                    'handicap' => $handicap,
-                    'total_points' => $totalPoints,
-                    'first_half_handicap' => $firstHalfHandicap,
-                    'first_half_points' => $firstHalfPoints,
-                    'away_team_solo_points' => $awaySoloPoints,
-                    'home_team_solo_points' => $homeSoloPoints,
-                ]
-            );
-
-            Log::info('Mercado NFL sincronizado', [
-                'game_id' => $gameId,
-                'nfl_game_id' => $game->id,
-            ]);
+        if (empty($gameIds)) {
+            Log::warning('Sin gameIds para sincronizar mercados NFL', ['market_id' => $marketId]);
+            return;
         }
-    }
-
-    public function syncPlayerMarkets()
-    {
-        $prefix = 'https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu?sb=juancito&gameId=';
 
         $playersByMarketId = NflPlayer::whereNotNull('market_id')->get()->keyBy('market_id');
 
         if ($playersByMarketId->isEmpty()) {
-            Log::warning('No hay jugadores con market_id asignado, no se sincronizarán mercados de jugadores');
-            return;
+            Log::warning('No hay jugadores con market_id asignado para sincronizar mercados NFL');
         }
 
-        $records = DB::connection('markets')
-            ->table('nfl_markets')
-            ->where('url', 'like', $prefix . '%')
-            ->orderBy('game_id')
-            ->get();
+        foreach ($gameIds as $targetMarketId) {
+            $teamPayload = $this->fetchTeamMarketPayload($targetMarketId);
 
-        $groupedByGame = [];
-
-        foreach ($records as $record) {
-            // dd('entro a records');
-            $statistic = $this->extractStatisticFromUrl($record->url);
-
-            if (!$statistic || !array_key_exists($statistic, self::PLAYER_STAT_COLUMN_MAP)) {
+            if (!$teamPayload) {
+                Log::warning('No se pudo obtener payload de equipos', ['game_id' => $targetMarketId]);
                 continue;
             }
 
-            $payload = json_decode($record->body, true);
+            $game = $this->resolveGameFromTeamPayload($targetMarketId, $teamPayload);
 
-            Log::info('Procesando juego ' . $record->game_id . ' con statistic ' . $statistic);
+            if (!$game) {
+                Log::warning('Juego NFL no encontrado para mercado', ['game_id' => $targetMarketId]);
+                continue;
+            }
 
-            if (!is_array($payload)) {
-                Log::warning('Mercado de jugador inválido: JSON no parseable', [
-                    'game_id' => $record->game_id,
+            if ($game->market_id !== $targetMarketId) {
+                $game->update(['market_id' => $targetMarketId]);
+            }
+
+            $this->syncGameMarketData($game, $targetMarketId, $teamPayload);
+
+            if ($playersByMarketId->isNotEmpty()) {
+                $this->syncPlayerMarketData($game, $targetMarketId, $playersByMarketId);
+            }
+        }
+    }
+
+    private function fetchAllGameIds(): array
+    {
+        $gameIds = [];
+
+        foreach (self::DISCOVERY_STATISTICS as $statistic) {
+            try {
+                $response = Http::timeout(15)->get(self::PLAYER_GAMES_ENDPOINT, [
+                    'gameId' => 'null',
                     'statistic' => $statistic,
-                    'url' => $record->url,
+                    'league' => 'nfl',
                 ]);
+
+                if (!$response->successful()) {
+                    Log::warning('Error al obtener gameIds', [
+                        'statistic' => $statistic,
+                        'status' => $response->status(),
+                    ]);
+                    continue;
+                }
+
+                $payload = $response->json();
+
+                if (!is_array($payload)) {
+                    Log::warning('Respuesta inválida al obtener gameIds', ['statistic' => $statistic]);
+                    continue;
+                }
+
+                $gameIds = array_merge($gameIds, $this->extractGameIdsFromResponse($payload));
+            } catch (\Throwable $exception) {
+                Log::error('Excepción al obtener gameIds', [
+                    'statistic' => $statistic,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return array_values(array_unique($gameIds));
+    }
+
+    private function fetchTeamMarketPayload(string $marketId): ?array
+    {
+        try {
+            $response = Http::timeout(15)->get(self::TEAM_MARKET_ENDPOINT, [
+                'sb' => self::SPORTSBOOK_ALIAS,
+                'gameId' => $marketId,
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('Error HTTP al obtener mercado de equipos', [
+                    'game_id' => $marketId,
+                    'status' => $response->status(),
+                ]);
+                return null;
+            }
+
+            $payload = $response->json();
+
+            return is_array($payload) ? $payload : null;
+        } catch (\Throwable $exception) {
+            Log::error('Excepción al obtener mercado de equipos', [
+                'game_id' => $marketId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function fetchPlayerStatPayloads(string $marketId): array
+    {
+        $statBlocks = [];
+
+        foreach (self::PLAYER_STAT_COLUMN_MAP as $statistic => $column) {
+            $payload = $this->fetchPlayerMarketPayload($marketId, $statistic);
+
+            if ($payload === null) {
                 continue;
             }
 
-            $groupedByGame[$record->game_id][] = [
+            $statBlocks[] = [
                 'statistic' => $statistic,
-                'column' => self::PLAYER_STAT_COLUMN_MAP[$statistic],
+                'column' => $column,
                 'payload' => $payload,
             ];
         }
 
-        foreach ($groupedByGame as $marketId => $statBlocks) {
-            $game = NflGame::where('market_id', $marketId)->first();
+        return $statBlocks;
+    }
 
-            if (!$game) {
-                Log::warning('Mercado de jugador sin juego asociado', ['game_id' => $marketId]);
-                continue;
+    private function fetchPlayerMarketPayload(string $marketId, string $statistic): ?array
+    {
+        try {
+            $response = Http::timeout(15)->get(self::PLAYER_MARKET_ENDPOINT, [
+                'sb' => self::SPORTSBOOK_ALIAS,
+                'gameId' => $marketId,
+                'statistic' => $statistic,
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('Error HTTP al obtener mercado de jugadores', [
+                    'game_id' => $marketId,
+                    'statistic' => $statistic,
+                    'status' => $response->status(),
+                ]);
+                return null;
             }
 
-            $playerRows = [];
+            $payload = $response->json();
 
-            foreach ($statBlocks as $block) {
-                foreach ($block['payload'] as $statEntry) {
-                    foreach ($statEntry['players'] ?? [] as $playerBlock) {
-                        $playerMarketId = $playerBlock['id'] ?? null;
+            return is_array($payload) ? $payload : null;
+        } catch (\Throwable $exception) {
+            Log::error('Excepción al obtener mercado de jugadores', [
+                'game_id' => $marketId,
+                'statistic' => $statistic,
+                'message' => $exception->getMessage(),
+            ]);
 
-                        if (!$playerMarketId) {
-                            continue;
-                        }
+            return null;
+        }
+    }
 
-                        $value = $this->selectBestPlayerValue($playerBlock['markets'] ?? []);
+    private function resolveGameFromTeamPayload(string $marketId, array $teamPayload): ?NflGame
+    {
+        $game = NflGame::where('market_id', $marketId)->first();
 
-                        if ($value === null) {
-                            Log::info('Jugador sin valor principal en mercado', [
-                                'game_id' => $marketId,
-                                'statistic' => $block['statistic'],
-                                'player_market_id' => $playerMarketId,
-                                'player_name' => $playerBlock['name'] ?? null,
-                            ]);
-                            continue;
-                        }
+        if ($game) {
+            return $game;
+        }
 
-                        $player = $playersByMarketId->get($playerMarketId);
+        $toWin = collect($teamPayload)->firstWhere('statistic', 'to win');
 
-                        if (!$player) {
-                            Log::warning('Jugador de mercado no encontrado', [
-                                'game_id' => $marketId,
-                                'statistic' => $block['statistic'],
-                                'player_market_id' => $playerMarketId,
-                                'player_name' => $playerBlock['name'] ?? null,
-                                'team' => $playerBlock['team'] ?? null,
-                            ]);
-                            continue;
-                        }
+        if (empty($toWin['markets'])) {
+            return null;
+        }
 
-                        if (!isset($playerRows[$player->id])) {
-                            $playerRows[$player->id] = [
-                                'game_id' => $game->id,
-                                'player_id' => $player->id,
-                            ];
-                        }
+        $gameInfo = $this->extractGameInfo($toWin['markets']);
 
-                        $playerRows[$player->id][$block['column']] = $value;
+        if (!$gameInfo) {
+            return null;
+        }
+
+        [$homeMarketId, $awayMarketId] = $gameInfo;
+
+        $homeTeam = $homeMarketId ? NflTeam::where('market_id', $homeMarketId)->first() : null;
+        $awayTeam = $awayMarketId ? NflTeam::where('market_id', $awayMarketId)->first() : null;
+
+        if (!$homeTeam || !$awayTeam) {
+            return null;
+        }
+
+        return NflGame::where('home_team_id', $homeTeam->id)
+            ->where('away_team_id', $awayTeam->id)
+            ->first();
+    }
+
+    private function syncGameMarketData(NflGame $game, string $marketId, array $teamPayload): void
+    {
+        $toWin = collect($teamPayload)->firstWhere('statistic', 'to win');
+
+        if (empty($toWin['markets'])) {
+            Log::warning('Mercado de equipos sin estadística to win', [
+                'game_id' => $marketId,
+                'nfl_game_id' => $game->id,
+            ]);
+            return;
+        }
+
+        $favoriteTeamId = $this->determineFavoriteTeamId(
+            $toWin['markets'],
+            $game->home_team_id,
+            $game->away_team_id
+        );
+
+        $handicap = $this->normalizeHandicapValue($this->extractPrincipalValue($teamPayload, 'handicap win'));
+        $totalPoints = $this->extractPrincipalValue($teamPayload, 'total points');
+        $firstHalfHandicap = $this->normalizeHandicapValue($this->extractPrincipalValue($teamPayload, '1st half handicap win'));
+        $firstHalfPoints = $this->extractPrincipalValue($teamPayload, '1st half total points');
+        $awaySoloPoints = $this->extractPrincipalValue($teamPayload, 'away team total points');
+        $homeSoloPoints = $this->extractPrincipalValue($teamPayload, 'home team total points');
+
+        $candidateValues = [
+            'favorite_team_id' => $favoriteTeamId,
+            'handicap' => $handicap,
+            'total_points' => $totalPoints,
+            'first_half_handicap' => $firstHalfHandicap,
+            'first_half_points' => $firstHalfPoints,
+            'away_team_solo_points' => $awaySoloPoints,
+            'home_team_solo_points' => $homeSoloPoints,
+        ];
+
+        $updates = array_filter(
+            $candidateValues,
+            static fn ($value) => $value !== null
+        );
+
+        if (empty($updates)) {
+            Log::info('Sin valores nuevos para mercados de equipos', [
+                'game_id' => $marketId,
+                'nfl_game_id' => $game->id,
+            ]);
+            return;
+        }
+
+        NflGameMarket::updateOrCreate(['game_id' => $game->id], $updates);
+    }
+
+    private function syncPlayerMarketData(NflGame $game, string $marketId, Collection $playersByMarketId): void
+    {
+        $statBlocks = $this->fetchPlayerStatPayloads($marketId);
+
+        if (empty($statBlocks)) {
+            Log::info('Sin mercados de jugadores disponibles', [
+                'game_id' => $marketId,
+                'nfl_game_id' => $game->id,
+            ]);
+            return;
+        }
+
+        $playerRows = [];
+
+        foreach ($statBlocks as $block) {
+            foreach ($block['payload'] as $statEntry) {
+                foreach ($statEntry['players'] ?? [] as $playerBlock) {
+                    $playerMarketId = $playerBlock['id'] ?? null;
+
+                    if (!$playerMarketId) {
+                        continue;
                     }
+
+                    $value = $this->selectBestPlayerValue($playerBlock['markets'] ?? []);
+
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    $player = $playersByMarketId->get($playerMarketId);
+
+                    if (!$player) {
+                        continue;
+                    }
+
+                    if (!isset($playerRows[$player->id])) {
+                        $playerRows[$player->id] = [
+                            'game_id' => $game->id,
+                            'player_id' => $player->id,
+                        ];
+                    }
+
+                    $playerRows[$player->id][$block['column']] = $value;
+                }
+            }
+        }
+
+        if (empty($playerRows)) {
+            Log::info('No se encontraron valores nuevos para jugadores', [
+                'game_id' => $marketId,
+                'nfl_game_id' => $game->id,
+            ]);
+            return;
+        }
+
+        foreach ($playerRows as $row) {
+            $attributes = [
+                'game_id' => $row['game_id'],
+                'player_id' => $row['player_id'],
+            ];
+
+            $updates = [];
+
+            foreach (self::PLAYER_STAT_COLUMN_MAP as $column) {
+                if (array_key_exists($column, $row)) {
+                    $updates[$column] = $row[$column];
                 }
             }
 
-            if (empty($playerRows)) {
-                Log::info('Sin datos de jugadores para el juego', ['game_id' => $marketId, 'nfl_game_id' => $game->id]);
+            if (!empty($updates)) {
+                NflPlayerMarket::updateOrCreate($attributes, $updates);
+            }
+        }
+    }
+
+    private function extractGameIdsFromResponse(array $jsonData): array
+    {
+        $gameIds = [];
+
+        foreach ($jsonData as $game) {
+            if (!is_array($game)) {
                 continue;
             }
 
-            $count = 0;
+            $providers = $game['providers'] ?? null;
 
-            foreach ($playerRows as $row) {
-                $count++;
-
-                NflPlayerMarket::updateOrCreate([
-                    'game_id' => $row['game_id'],
-                    'player_id' => $row['player_id'],
-                ], [
-                    'passing_yards' => $row['passing_yards'] ?? null,
-                    'pass_completions' => $row['pass_completions'] ?? null,
-                    'pass_attempts' => $row['pass_attempts'] ?? null,
-                    'rushing_yards' => $row['rushing_yards'] ?? null,
-                    'carries' => $row['carries'] ?? null,
-                    'receiving_yards' => $row['receiving_yards'] ?? null,
-                    'receptions' => $row['receptions'] ?? null,
-                    'tackles' => $row['tackles'] ?? null,
-                    'sacks' => $row['sacks'] ?? null,
-                ]);
+            if (!is_array($providers)) {
+                continue;
             }
 
-            Log::info('Mercados de jugadores sincronizados', [
-                'game_id' => $marketId,
-                'nfl_game_id' => $game->id,
-                'jugadores' => $count,
-            ]);
+            foreach ($providers as $provider) {
+                if (isset($provider['id'])) {
+                    $gameIds[] = (string) $provider['id'];
+                }
+            }
         }
+
+        return $gameIds;
     }
 
     private function normalizeHandicapValue(?string $value): ?string
@@ -507,23 +652,6 @@ class NflMarketService
         }
 
         return $this->formatDecimalValue($bestEntry['value']);
-    }
-
-    private function extractStatisticFromUrl(string $url): ?string
-    {
-        $components = parse_url($url);
-
-        if (empty($components['query'])) {
-            return null;
-        }
-
-        parse_str($components['query'], $params);
-
-        if (!isset($params['statistic'])) {
-            return null;
-        }
-
-        return urldecode($params['statistic']);
     }
 
     private function formatDecimalValue(float|int|string $value): string

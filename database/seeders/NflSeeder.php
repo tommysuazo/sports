@@ -9,6 +9,7 @@ use App\Services\NflExternalService;
 use App\Services\NflMarketService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class NflSeeder extends Seeder
@@ -80,5 +81,7 @@ class NflSeeder extends Seeder
         }
 
         resolve(NflMarketService::class)->syncPlayers();
+
+        Cache::tags(['player-stats'])->flush();
     }
 }

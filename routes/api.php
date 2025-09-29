@@ -3,6 +3,9 @@
 use App\Http\Controllers\NbaGameController;
 use App\Http\Controllers\NbaMarketController;
 use App\Http\Controllers\NbaPlayerController;
+use App\Http\Controllers\NflMarketController;
+use App\Http\Controllers\NflPlayerController;
+use App\Http\Controllers\NflTeamController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\WnbaGameController;
 use Illuminate\Http\Request;
@@ -45,7 +48,25 @@ Route::middleware(['api'])->group(function () {
         });
     });
 
-    
+    Route::prefix('/nfl')->group(function () {
+        Route::prefix('/games')->group(function () {
+            // Route::get('/', [NflGameController::class, 'index']);
+        });
+
+        Route::prefix('/players')->group(function () {
+            Route::get('/{player}/stats', [NflPlayerController::class, 'getStats']);
+        });
+
+        Route::prefix('/teams')->group(function () {
+            Route::get('/stats/averages', [NflTeamController::class, 'getAverageStatsAll']);
+            Route::get('/{team}/stats/averages', [NflTeamController::class, 'getAverageStats']);
+            Route::get('/{team}/stats', [NflTeamController::class, 'getStats']);
+        });
+
+        Route::prefix('/markets')->group(function () {
+            Route::get('/', [NflMarketController::class, 'index']);
+            Route::get('/matchups', [NflMarketController::class, 'matchups']);
+        });
+
+    });
 });
-
-

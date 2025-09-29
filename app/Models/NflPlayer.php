@@ -21,17 +21,7 @@ class NflPlayer extends Model
 
     // Hace que aparezca en toArray()/toJson()
     protected $appends = ['full_name'];
-
-    public function team()
-    {
-        return $this->belongsTo(NflTeam::class, 'team_id');
-    }
-
-    public function stats()
-    {
-        return $this->hasMany(NflPlayerStat::class, 'player_id');
-    }
-
+    
     /**
      * Atributo calculado: full_name
      * Disponible como $player->full_name y se incluye en JSON.
@@ -43,5 +33,20 @@ class NflPlayer extends Model
             $parts = array_filter([$this->first_name, $this->last_name], fn ($v) => filled($v));
             return trim(implode(' ', $parts));
         });
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(NflTeam::class, 'team_id');
+    }
+
+    public function stats()
+    {
+        return $this->hasMany(NflPlayerStat::class, 'player_id');
+    }
+
+    public function markets()
+    {
+        return $this->hasMany(NflPlayerMarket::class, 'player_id');
     }
 }

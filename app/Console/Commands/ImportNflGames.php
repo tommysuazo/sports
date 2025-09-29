@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use App\Services\NflExternalService;
 
 class ImportNflGames extends Command
@@ -55,6 +56,8 @@ class ImportNflGames extends Command
             $this->info("Importing games for year {$year}, week {$week}...");
             $this->nflExternalService->importGamesByWeek($week, $year);
         }
+
+        Cache::tags(['player-stats'])->flush();
 
         $this->info('Import completed successfully.');
         return Command::SUCCESS;
