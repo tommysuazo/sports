@@ -13,6 +13,13 @@ class NflGameController extends Controller
         protected NflGameService $nflGameService
     ) {
     }
+
+    public function index(Request $request)
+    {
+        return $this->nflGameService->list(
+            $request->only(['team', 'page', 'all'])
+        );
+    }
     
     public function show(NflGame $nflGame)
     {

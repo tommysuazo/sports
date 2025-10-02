@@ -3,6 +3,7 @@
 use App\Http\Controllers\NbaGameController;
 use App\Http\Controllers\NbaMarketController;
 use App\Http\Controllers\NbaPlayerController;
+use App\Http\Controllers\NflGameController;
 use App\Http\Controllers\NflMarketController;
 use App\Http\Controllers\NflPlayerController;
 use App\Http\Controllers\NflTeamController;
@@ -50,7 +51,7 @@ Route::middleware(['api'])->group(function () {
 
     Route::prefix('/nfl')->group(function () {
         Route::prefix('/games')->group(function () {
-            // Route::get('/', [NflGameController::class, 'index']);
+            Route::get('/', [NflGameController::class, 'index']);
         });
 
         Route::prefix('/players')->group(function () {

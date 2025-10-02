@@ -51,7 +51,7 @@ class NflMarketService
 
     public function getLiveMarkets(): Collection
     {
-        return NflGame::with(['homeTeam', 'awayTeam', 'markets', 'playerMarkets',])->where('week', NflWeekEnum::current())->get();
+        return NflGame::with(['homeTeam', 'awayTeam', 'market', 'playerMarkets',])->where('week', NflWeekEnum::current())->get();
     }
 
     public function getMatchups(?NflWeekEnum $week = null): Collection
