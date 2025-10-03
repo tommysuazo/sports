@@ -86,7 +86,7 @@ class NflExternalService
 
     public function createGame($gameId)
     {
-        $game = NflGame::where('external_id', $gameId)->withCount('teamStats')->first();
+        $game = NflGame::where('external_id', $gameId)->withCount('stats')->first();
 
         if ($game && $game->team_stats_count > 0) {
             Log::info("NFL game {$gameId} already has team stats. Skipping.");
@@ -115,6 +115,11 @@ class NflExternalService
 
 
             if ($game) {
+                if ($game->is_completed) {
+                    DB::rollBack();
+                    return $game;
+                }
+
                 $game->is_completed = $isCompleted;
                 $game->save();
             
@@ -167,8 +172,6 @@ class NflExternalService
 
         $players = NflPlayer::whereIn('external_id', array_keys($playerStats))->get();
         
-        $playerStatInsertion = [];
-        
         $teamStatInsertion = [
             'passing_yards' => 0,
             'pass_completions' => 0,
@@ -193,8 +196,6 @@ class NflExternalService
             }
 
             $stats = [
-                'game_id' => $game->id,
-                'player_id' => $player->id,
                 'team_id' => $team->id,
                 'is_away' => $isAway,
                 'passing_yards' => $playerStat['passing_yards'] ?? 0,
@@ -209,7 +210,10 @@ class NflExternalService
                 'tackles' => $playerStat['tackles'] ?? 0,
             ];
 
-            $playerStatInsertion[] = $stats;
+            NflPlayerStat::updateOrCreate([
+                'game_id' => $game->id,
+                'player_id' => $player->id,
+            ], $stats);
 
             // Sumar al acumulado del equipo
             foreach ($teamStatInsertion as $key => $value) {
@@ -217,15 +221,14 @@ class NflExternalService
             }
         }
 
-        NflPlayerStat::insert($playerStatInsertion);
-
         $teamScores = $data['header']['competitions'][0]['competitors'][0]['id'] === $team->external_id
             ? $data['header']['competitions'][0]['competitors'][0]
             : $data['header']['competitions'][0]['competitors'][1];
 
-        NflTeamStat::create([
+        NflTeamStat::updateOrCreate([
             'game_id' => $game->id,
             'team_id' => $team->id,
+        ], [
             'is_away' => $isAway,
             'points_total' => (int) $teamScores['score'],
             'points_q1' => (int) $teamScores['linescores'][0]['displayValue'],
