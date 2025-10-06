@@ -7,10 +7,12 @@ use App\Enums\NflWeekEnum;
 use App\Models\NflGame;
 use App\Models\NflPlayer;
 use App\Models\NflTeam;
+use App\Models\NhlTeam;
 use App\Services\NbaExternalService;
 use App\Services\NbaStatsService;
 use App\Services\NflExternalService;
 use App\Services\NflMarketService;
+use App\Services\NhlExternalService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -22,13 +24,47 @@ class TestController extends Controller
 
     public function __invoke()
     {
+        // teams list
+        // https://api-web.nhle.com/v1/standings/2025-04-17
+        
+        // teams roster
+        // https://api-web.nhle.com/v1/roster/TOR/20252026
+        
+        // gameday
+        // https://api-web.nhle.com/v1/score/2023-11-10
+
+        // game boxscore 
+        // https://api-web.nhle.com/v1/gamecenter/2023020204/boxscore
+
+
+        // $request = Http::get("https://api-web.nhle.com/v1/standings/2025-04-17");
+
+        // $teams = NhlTeam::all();
+
+        Log::info('Inicio de migracion de equipos de NHL');
+
+        $data = NhlExternalService::getTeams();
+        
+        if (!empty($data['standings'])) {
+            foreach ($data['standings'] as $teamData) {
+                if (empty($teamData['teamAbbrev']) || empty($teamData['teamAbbrev']['default'])) {
+                    continue;
+                }
+
+                $allTeamInfo[$teamData['teamAbbrev']['default']] = $teamData;
+            }
+        }
+
+        ksort($allTeamInfo);
+
+        return $allTeamInfo;
         // resolve(NflMarketService::class)->syncMarkets();
 
-        return resolve(NflMarketService::class)->getMatchups(NflWeekEnum::WEEK_4);
+        // return resolve(NflMarketService::class)->getMatchups(NflWeekEnum::WEEK_4);
         
-        return NflGame::with(['homeTeam', 'awayTeam', 'markets', 'playerMarkets',])->where('week', 4)->get();
+        // return NflGame::with(['homeTeam', 'awayTeam', 'markets', 'playerMarkets',])->where('week', 4)->get();
 
-        return 'ok';
+        // return 'ok';
         // $teams = NflTeam::with('players')->get();
 
         // foreach ($teams as $team) {
@@ -193,7 +229,22 @@ class TestController extends Controller
         https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1 << teams list
 
         // NHL
-        https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/1 << teams list
+        
+        // teams list
+        https://api-web.nhle.com/v1/standings/now
+        
+        // teams roster
+        https://api-web.nhle.com/v1/roster/TOR/20252026
+        
+        // gameday
+        https://api-web.nhle.com/v1/score/2023-11-10
+
+        // game boxscore 
+        https://api-web.nhle.com/v1/gamecenter/2023020204/boxscore
+
+
+
+
 
         Handicap
         Ganador Moneyline
