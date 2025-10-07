@@ -3,12 +3,11 @@
 namespace App\Services;
 
 use App\Exceptions\KnownException;
-use App\Models\NflGame;
-use App\Models\NflPlayer;
-use App\Models\NflPlayerStat;
-use App\Models\NflTeam;
-use App\Models\NflTeamStat;
+use App\Models\NhlGame;
+use App\Models\NhlPlayer;
+use App\Models\NhlPlayerStat;
 use App\Models\NhlTeam;
+use App\Models\NhlTeamStat;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -51,10 +50,10 @@ class NhlExternalService
             throw new KnownException("Fallo en el retorno del listado de los juegos de NHL de la fecha {$date}");
         }
 
-        return Collect($request->json('items.*.$ref'))->map(function ($url) {
-            preg_match('/events\/(\d+)\?/', $url, $matches);
-            return $matches[1] ?? null;
-        })->filter()->values();
+        return collect($request->json('games', []))
+            ->map(fn ($game) => $game['id'] ?? $game['gamePk'] ?? null)
+            ->filter()
+            ->values();
     }
     
     public static function getGame(string $gameId)
@@ -81,71 +80,64 @@ class NhlExternalService
 
     public function createGame($gameId)
     {
-        $game = NflGame::where('external_id', $gameId)->withCount('stats')->first();
+        $game = NhlGame::where('external_id', $gameId)->withCount('stats')->first();
 
         if ($game && $game->team_stats_count > 0) {
-            Log::info("NFL game {$gameId} already has team stats. Skipping.");
+            Log::info("NHL game {$gameId} already has team stats. Skipping.");
             return $game;
         }
 
-        Log::info("Importing NFL game with external ID {$gameId}");
-        
+        Log::info("Importing NHL game with external ID {$gameId}");
+
         $data = self::getGame($gameId);
-        
-        $isCompleted = $data['header']['competitions'][0]['status']['type']['completed'];
+        $isCompleted = $this->isCompletedGame($data);
 
         try {
             DB::beginTransaction();
-            
-            $awayTeamIndex = $data['boxscore']['teams'][0]['homeAway'] === 'away' ? 0 : 1;
-            $homeTeamIndex = $awayTeamIndex ? 0 : 1;
 
-            $awayTeamExternalId = $data['boxscore']['teams'][$awayTeamIndex]['team']['id'];
-            $homeTeamExternalId = $data['boxscore']['teams'][$homeTeamIndex]['team']['id'];
+            $awayTeam = NhlTeam::where('code', $data['awayTeam']['abbrev'])->first();
+            $homeTeam = NhlTeam::where('code', $data['homeTeam']['abbrev'])->first();
 
-            $teams = NflTeam::whereIn('external_id', [$awayTeamExternalId, $homeTeamExternalId])->get();
+            if (!$awayTeam || !$homeTeam) {
+                throw new KnownException("No se encontraron los equipos para el juego {$gameId}");
+            }
 
-            $awayTeam = $teams->firstWhere('external_id', $awayTeamExternalId);
-            $homeTeam = $teams->firstWhere('external_id', $homeTeamExternalId);
+            if ($game && $game->is_completed) {
+                DB::rollBack();
+                return $game;
+            }
 
+            $gameAttributes = [
+                'season' => $data['season'] ?? null,
+                'start_at' => isset($data['startTimeUTC']) ? Carbon::parse($data['startTimeUTC']) : null,
+                'away_team_id' => $awayTeam->id,
+                'home_team_id' => $homeTeam->id,
+                'is_completed' => $isCompleted,
+                'winner_team_id' => $this->getWinnerTeamId($awayTeam, $homeTeam, $data),
+            ];
 
             if ($game) {
-                if ($game->is_completed) {
-                    DB::rollBack();
-                    return $game;
-                }
-
-                $game->is_completed = $isCompleted;
+                $game->fill($gameAttributes);
                 $game->save();
-            
             } else {
-                $game = NflGame::create([
+                $game = NhlGame::create(array_merge([
                     'external_id' => $gameId,
-                    'season' => $data['header']['season']['year'],
-                    'week' => $data['header']['week'],
-                    'played_at' => Carbon::parse($data['header']['competitions'][0]['date']),
-                    'away_team_id' => $awayTeam->id,
-                    'home_team_id' => $homeTeam->id,
-                    'is_completed' => $isCompleted,
-                ]);
+                ], $gameAttributes));
             }
 
             if (!$isCompleted) {
-                Log::info("The NFL game with external ID {$gameId} has not been completed. Stored header only.");
+                Log::info("El juego NHL {$gameId} aún no finaliza. Solo se guardó la cabecera.");
                 DB::commit();
                 return $game;
             }
 
             $this->createTeamStat($game, $awayTeam, $data);
-
             $this->createTeamStat($game, $homeTeam, $data);
-            
-            DB::commit();
 
+            DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
-
-            Log::warning("Fail to save NFL game with external ID {$gameId}");
+            Log::warning("Fallo al guardar el juego NHL con ID externo {$gameId}");
             throw $th;
         }
 
@@ -153,190 +145,210 @@ class NhlExternalService
     }
 
 
-    public function createTeamStat(NflGame $game, NflTeam $team, array $data)
+    public function createTeamStat(NhlGame $game, NhlTeam $team, array $data)
     {
-        $isAway = $team->external_id == $data['boxscore']['teams'][0]['team']['id']
-            ? $data['boxscore']['teams'][0]['homeAway'] === 'away'
-            : $data['boxscore']['teams'][1]['homeAway'] === 'away';
+        $teamSide = $this->getTeamSide($team, $data);
 
-        $stats = $team->external_id == $data['boxscore']['players'][0]['team']['id']
-            ? $data['boxscore']['players'][0]['statistics']
-            : $data['boxscore']['players'][1]['statistics'];
+        if (!$teamSide) {
+            Log::warning("No se pudo determinar el lado del equipo {$team->code} en el juego {$game->external_id}");
+            return;
+        }
 
-        $playerStats = $this->getPlayerStatFromStatistics($stats);
+        $teamScoreData = $data[$teamSide] ?? [];
+        $playerStatsByGame = $data['playerByGameStats'][$teamSide] ?? [];
 
-        $players = NflPlayer::whereIn('external_id', array_keys($playerStats))->get();
-        
-        $teamStatInsertion = [
-            'passing_yards' => 0,
-            'pass_completions' => 0,
-            'pass_attempts' => 0,
-            'receiving_yards' => 0,
-            'rushing_yards' => 0,
-            'carries' => 0,
-            'sacks' => 0,
-            'tackles' => 0,
-        ];
+        $playersData = $this->flattenPlayerStats($playerStatsByGame);
 
-        foreach ($playerStats as $externalId => $playerStat) {
-            $player = $players->firstWhere('external_id', $externalId);
+        foreach ($playersData as $playerData) {
+            $this->upsertPlayerStat($game, $team, $playerData);
+        }
 
-            if (!$player) {
-                $player = NflPlayer::create([
-                    'external_id' => $externalId,
-                    'team_id' => $team->id,
-                    'first_name' => $playerStat['first_name'],
-                    'last_name' => $playerStat['last_name'],
-                ]);
-            }
+        $this->upsertTeamStat(
+            $game,
+            $team,
+            (int) ($teamScoreData['score'] ?? 0),
+            (int) ($teamScoreData['sog'] ?? 0)
+        );
+    }
 
-            $stats = [
-                'team_id' => $team->id,
-                'is_away' => $isAway,
-                'passing_yards' => $playerStat['passing_yards'] ?? 0,
-                'pass_completions' => $playerStat['pass_completions'] ?? 0,
-                'pass_attempts' => $playerStat['pass_attempts'] ?? 0,
-                'receiving_yards' => $playerStat['receiving_yards'] ?? 0,
-                'receptions' => $playerStat['receptions'] ?? 0,
-                'receiving_targets' => $playerStat['receiving_targets'] ?? 0,
-                'rushing_yards' => $playerStat['rushing_yards'] ?? 0,
-                'carries' => $playerStat['carries'] ?? 0,
-                'sacks' => $playerStat['sacks'] ?? 0,
-                'tackles' => $playerStat['tackles'] ?? 0,
-            ];
+    protected function isCompletedGame(array $data): bool
+    {
+        $state = $data['gameState'] ?? null;
 
-            NflPlayerStat::updateOrCreate([
-                'game_id' => $game->id,
-                'player_id' => $player->id,
-            ], $stats);
+        return in_array($state, ['FINAL', 'OFF', 'COMPLETE'], true)
+            || (($data['clock']['secondsRemaining'] ?? 1) === 0 && ($data['periodDescriptor']['number'] ?? 0) >= 3);
+    }
 
-            // Sumar al acumulado del equipo
-            foreach ($teamStatInsertion as $key => $value) {
-                $teamStatInsertion[$key] += $stats[$key];
+    protected function getWinnerTeamId(NhlTeam $awayTeam, NhlTeam $homeTeam, array $data): ?int
+    {
+        $awayScore = (int) ($data['awayTeam']['score'] ?? 0);
+        $homeScore = (int) ($data['homeTeam']['score'] ?? 0);
+
+        if ($awayScore === $homeScore) {
+            return null;
+        }
+
+        return $awayScore > $homeScore ? $awayTeam->id : $homeTeam->id;
+    }
+
+    protected function getTeamSide(NhlTeam $team, array $data): ?string
+    {
+        $awayAbbrev = $data['awayTeam']['abbrev'] ?? null;
+        $homeAbbrev = $data['homeTeam']['abbrev'] ?? null;
+
+        if ($team->code === $awayAbbrev) {
+            return 'awayTeam';
+        }
+
+        if ($team->code === $homeAbbrev) {
+            return 'homeTeam';
+        }
+
+        if (!empty($data['awayTeam']['id']) && $team->external_id == $data['awayTeam']['id']) {
+            return 'awayTeam';
+        }
+
+        if (!empty($data['homeTeam']['id']) && $team->external_id == $data['homeTeam']['id']) {
+            return 'homeTeam';
+        }
+
+        return null;
+    }
+
+    protected function flattenPlayerStats(array $playerStatsByGame): array
+    {
+        $players = [];
+
+        foreach (['forwards', 'defense', 'goalies'] as $group) {
+            foreach ($playerStatsByGame[$group] ?? [] as $playerData) {
+                $players[] = $playerData;
             }
         }
 
-        $teamScores = $data['header']['competitions'][0]['competitors'][0]['id'] === $team->external_id
-            ? $data['header']['competitions'][0]['competitors'][0]
-            : $data['header']['competitions'][0]['competitors'][1];
+        return $players;
+    }
 
-        NflTeamStat::updateOrCreate([
+    protected function upsertPlayerStat(NhlGame $game, NhlTeam $team, array $playerData): void
+    {
+        $player = $this->resolvePlayer($team, $playerData);
+
+        if (!$player) {
+            return;
+        }
+
+        $isGoalie = ($playerData['position'] ?? null) === 'G';
+
+        $stat = NhlPlayerStat::firstOrNew([
             'game_id' => $game->id,
-            'team_id' => $team->id,
-        ], [
-            'is_away' => $isAway,
-            'points_total' => (int) $teamScores['score'],
-            'points_q1' => (int) $teamScores['linescores'][0]['displayValue'],
-            'points_q2' => (int) $teamScores['linescores'][1]['displayValue'],
-            'points_q3' => (int) $teamScores['linescores'][2]['displayValue'],
-            'points_q4' => (int) $teamScores['linescores'][3]['displayValue'],
-            'points_ot' => isset($teamScores['linescores'][4]) ? (int) $teamScores['linescores'][4]['displayValue'] : null,
-            'total_yards' => $teamStatInsertion['passing_yards'] + $teamStatInsertion['rushing_yards'],
-            'passing_yards' => $teamStatInsertion['passing_yards'],
-            'pass_completions' => $teamStatInsertion['pass_completions'],
-            'pass_attempts' => $teamStatInsertion['pass_attempts'],
-            'rushing_yards' => $teamStatInsertion['rushing_yards'],
-            'carries' => $teamStatInsertion['carries'],
-            'sacks' => $teamStatInsertion['sacks'],
-            'tackles' => $teamStatInsertion['tackles'],
+            'player_id' => $player->id,
         ]);
 
-        
+        $stat->is_starter = $this->isStarter($playerData);
+        $stat->time = $this->parseTimeToMinutes($playerData['toi'] ?? null);
+        $stat->goals = (int) ($playerData['goals'] ?? 0);
+        $stat->shots = (int) ($isGoalie ? ($playerData['shotsAgainst'] ?? 0) : ($playerData['sog'] ?? 0));
+        $stat->assists = (int) ($playerData['assists'] ?? 0);
+        $stat->points = (int) ($playerData['points'] ?? 0);
+        $stat->hits = (int) ($playerData['hits'] ?? 0);
+        $stat->blocked_shots = (int) ($playerData['blockedShots'] ?? 0);
+        $stat->saves = (int) ($playerData['saves'] ?? ($this->extractSavesFromShotsAgainst($playerData) ?? 0));
+        $stat->goals_against = (int) ($playerData['goalsAgainst'] ?? 0);
+        $stat->save();
     }
 
-    public function getPlayerStatFromStatistics(array $statTypes): array
+    protected function resolvePlayer(NhlTeam $team, array $playerData): ?NhlPlayer
     {
-        $playerStats = [];
+        $externalId = $playerData['playerId'] ?? null;
 
-        foreach ($statTypes as $statType) {
-            switch ($statType['name']) {
-                case 'passing':
-                    $this->getPlayerStatFromPassingStatistics($playerStats, $statType);
-                    break;
-
-                case 'rushing':
-                    $this->getPlayerStatFromRushingStatistics($playerStats, $statType);
-                    break;
-
-                case 'receiving':
-                    $this->getPlayerStatFromReceivingStatistics($playerStats, $statType);
-                    break;
-
-                case 'defensive':
-                    $this->getPlayerStatFromDefensiveStatistics($playerStats, $statType);
-                    break;
-
-                default:
-                    break;
-            }
-
+        if (!$externalId) {
+            return null;
         }
 
-        return $playerStats;
+        $player = NhlPlayer::where('external_id', $externalId)->first();
+
+        if ($player) {
+            return $player;
+        }
+
+        $name = $playerData['name']['default'] ?? '';
+        [$firstName, $lastName] = $this->splitName($name);
+
+        return NhlPlayer::create([
+            'external_id' => $externalId,
+            'team_id' => $team->id,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'position' => $playerData['position'] ?? null,
+        ]);
     }
 
-    public function getPlayerStatFromPassingStatistics(array &$playerStats, $data)
+    protected function splitName(string $fullName): array
     {
-        // KEYS = [0 => Completions/Attempts, 1 => yards]
+        $fullName = trim($fullName);
 
-        foreach($data['athletes'] as $stat) {
-            $playerExternalId = $stat['athlete']['id'];
-            
-            $passes = explode('/', $stat['stats'][0]);
-
-            $playerStats[$playerExternalId]['passing_yards'] = $stat['stats'][1];
-            $playerStats[$playerExternalId]['pass_completions'] = $passes[0];
-            $playerStats[$playerExternalId]['pass_attempts'] = $passes[1];
-
-            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
-            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        if ($fullName === '') {
+            return ['', ''];
         }
+
+        $parts = preg_split('/\s+/', $fullName);
+
+        $first = array_shift($parts) ?? '';
+        $last = implode(' ', $parts);
+
+        return [$first, $last];
     }
 
-    public function getPlayerStatFromRushingStatistics(array &$playerStats, $data)
+    protected function parseTimeToMinutes(?string $time): int
     {
-        // KEYS = [0 => Rushing Attempts, 1 => yards]
-
-        foreach($data['athletes'] as $stat) {
-            $playerExternalId = $stat['athlete']['id'];
-
-            $playerStats[$playerExternalId]['rushing_yards'] = $stat['stats'][1];
-            $playerStats[$playerExternalId]['carries'] = $stat['stats'][0];
-
-            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
-            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        if (!$time) {
+            return 0;
         }
+
+        if (!str_contains($time, ':')) {
+            return (int) $time;
+        }
+
+        [$minutes, $seconds] = array_pad(explode(':', $time), 2, '0');
+
+        $total = ((int) $minutes) + (int) floor(((int) $seconds) / 60);
+
+        return max(0, min(255, $total));
     }
 
-    public function getPlayerStatFromReceivingStatistics(array &$playerStats, $data)
+    protected function extractSavesFromShotsAgainst(array $playerData): ?int
     {
-        // KEYS = [0 => Receptions, 1 => Yards, 5 => Receiving Targets]
-
-        foreach($data['athletes'] as $stat) {
-            $playerExternalId = $stat['athlete']['id'];
-
-            $playerStats[$playerExternalId]['receiving_yards'] = $stat['stats'][1];
-            $playerStats[$playerExternalId]['receptions'] = $stat['stats'][0];
-            $playerStats[$playerExternalId]['receiving_targets'] = $stat['stats'][5];
-
-            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
-            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        if (empty($playerData['saveShotsAgainst'])) {
+            return null;
         }
+
+        $parts = explode('/', $playerData['saveShotsAgainst']);
+
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        return (int) $parts[0];
     }
 
-    public function getPlayerStatFromDefensiveStatistics(array &$playerStats, $data)
+    protected function isStarter(array $playerData): bool
     {
-        // KEYS = [0 => Tackles, 2 => Sacks]
-
-        foreach($data['athletes'] as $stat) {
-            $playerExternalId = $stat['athlete']['id'];
-
-            $playerStats[$playerExternalId]['sacks'] = $stat['stats'][2];
-            $playerStats[$playerExternalId]['tackles'] = $stat['stats'][0];
-
-            $playerStats[$playerExternalId]['first_name'] = $stat['athlete']['firstName'];
-            $playerStats[$playerExternalId]['last_name'] = $stat['athlete']['lastName'];
+        if (array_key_exists('starter', $playerData)) {
+            return (bool) $playerData['starter'];
         }
+
+        return $this->parseTimeToMinutes($playerData['toi'] ?? null) > 0;
+    }
+
+    protected function upsertTeamStat(NhlGame $game, NhlTeam $team, int $goals, int $shots): void
+    {
+        $teamStat = NhlTeamStat::firstOrNew([
+            'game_id' => $game->id,
+            'team_id' => $team->id,
+        ]);
+
+        $teamStat->goals = $goals;
+        $teamStat->shots = $shots;
+        $teamStat->save();
     }
 
     public function test()

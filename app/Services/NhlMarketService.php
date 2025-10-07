@@ -15,39 +15,24 @@ use Illuminate\Support\Collection;
 class NhlMarketService
 {
     private const PLAYER_STAT_COLUMN_MAP = [
-        'Passing Yards' => 'passing_yards',
-        'Pass Completions' => 'pass_completions',
-        'Pass Attempts' => 'pass_attempts',
-        'Rushing Yards' => 'rushing_yards',
-        'Carries' => 'carries',
-        'Receiving Yards' => 'receiving_yards',
-        'Receptions' => 'receptions',
-        'Tackles' => 'tackles',
-        'Sacks' => 'sacks',
+        'Goals' => 'goals',
+        'Assists' => 'assists',
+        'Points' => 'points',
+        'Shots' => 'shots',
+        'Saves' => 'saves',
     ];
 
     private const DISCOVERY_STATISTICS = [
-        'Passing Yards',
-        'Pass Completions',
-        'Pass Attempts',
-        'Rushing Yards',
-        'Carries',
-        'Receiving Yards',
-        'Receptions',
-        'Tackles',
-        'Sacks',
+        'Goals',
+        'Assists',
+        'Points',
+        'Shots',
     ];
 
     private const PLAYER_GAMES_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/dfm/gamesByOu';
     private const PLAYER_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu';
     private const TEAM_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped';
     private const SPORTSBOOK_ALIAS = 'juancito';
-
-    public function __construct(
-    ) {
-    }
-
-    
 
     public function getLiveMarkets($date = null): Collection
     {
@@ -58,7 +43,7 @@ class NhlMarketService
 
     public function getMatchups($date = null): Collection
     {
-        return NhlGame::query()
+        $matchups = NhlGame::query()
             ->with([
                 'awayTeam' => function ($query) {
                     $query->with([
@@ -80,8 +65,13 @@ class NhlMarketService
                         }
                     ]);
                 },
-            ])
-            ->where('is_completed', false)
+            ]);
+
+        if (!$date) {
+            $matchups->where('is_completed', false);
+        }
+
+        return $matchups
             ->whereDate('start_at', $date ?? today()->toDateString())
             ->orderBy('start_at')
             ->get();
@@ -380,8 +370,6 @@ class NhlMarketService
 
         $handicap = $this->normalizeHandicapValue($this->extractPrincipalValue($teamPayload, 'handicap win'));
         $totalPoints = $this->extractPrincipalValue($teamPayload, 'total points');
-        $firstHalfHandicap = $this->normalizeHandicapValue($this->extractPrincipalValue($teamPayload, '1st half handicap win'));
-        $firstHalfPoints = $this->extractPrincipalValue($teamPayload, '1st half total points');
         $awaySoloPoints = $this->extractPrincipalValue($teamPayload, 'away team total points');
         $homeSoloPoints = $this->extractPrincipalValue($teamPayload, 'home team total points');
 
@@ -389,8 +377,6 @@ class NhlMarketService
             'favorite_team_id' => $favoriteTeamId,
             'handicap' => $handicap,
             'total_points' => $totalPoints,
-            'first_half_handicap' => $firstHalfHandicap,
-            'first_half_points' => $firstHalfPoints,
             'away_team_solo_points' => $awaySoloPoints,
             'home_team_solo_points' => $homeSoloPoints,
         ];
