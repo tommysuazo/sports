@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechNhlEnum;
+use App\Models\NhlPlayer;
 use App\Models\NhlTeam;
 use App\Services\NhlExternalService;
 use Illuminate\Database\Seeder;
@@ -17,7 +18,6 @@ class NhlSeeder extends Seeder
     public function run(): void
     {
         // Equipos
-        $teams = NhlTeam::all();
 
         Log::info('Inicio de migracion de equipos de NHL');
 
@@ -37,10 +37,12 @@ class NhlSeeder extends Seeder
 
         ksort($allTeamInfo);
 
+        $teams = [];
+
         foreach ($allTeamInfo as $teamInfo) {
             Log::info("- Equipo a procesar: " . $teamInfo['teamAbbrev']['default']);
 
-            $teams[$teamInfo['id']] = NhlTeam::updateOrCreate(
+            $teams[] = NhlTeam::updateOrCreate(
                 ['code' => $teamInfo['teamAbbrev']['default']], // Evita duplicados
                 [
                     'market_id' => DigitalSportsTechNhlEnum::getTeamId($teamInfo['teamAbbrev']['default']),
@@ -51,38 +53,39 @@ class NhlSeeder extends Seeder
         }
 
         // Jugadores
-        // $players = [];
 
-        // Log::info('Inicio de migracion de jugadores de NFL');
+        Log::info('Inicio de migracion de jugadores de NHL');
 
-        // foreach ($teams as $team) {
-        //     Log::info("- Procesando roster del equipo {$team->city} {$team->name}");
-        //     $data = NflExternalService::getTeamPlayers($team);
+        foreach ($teams as $team) {
+            Log::info("- Procesando roster del equipo {$team->city} {$team->name}");
+            $data = NhlExternalService::getTeamPlayers($team);
 
-        //     foreach ($data['athletes'] as $category) {
-        //         foreach ($category['items'] as $player) {
-        //             // Ignorar elementos vacíos
-        //             if (empty($player) || !isset($player['id'])) {
-        //                 continue;
-        //             }
+            foreach ($data as $category) {
+                foreach ($category as $player) {
+                    // Ignorar elementos vacíos
+                    if (empty($player) || !isset($player['id'])) {
+                        continue;
+                    }
 
-        //             Log::info("** Procesando jugador ID:{$player['id']} {$player['firstName']} {$player['lastName']}");
+                    Log::info(
+                        "** Procesando jugador ID:{$player['id']} {$player['firstName']['default']} {$player['lastName']['default']}"
+                    );
     
-        //             NflPlayer::updateOrCreate(
-        //                 ['external_id' => $player['id']],
-        //                 [
-        //                     'team_id' => $team->id,
-        //                     'first_name' => $player['firstName'],
-        //                     'last_name' => $player['lastName'],
-        //                     'position' => $player['position']['abbreviation'],
-        //                 ]
-        //             );
-        //         }
-        //     }
-        // }
+                    NhlPlayer::updateOrCreate(
+                        ['external_id' => $player['id']],
+                        [
+                            'team_id' => $team->id,
+                            'first_name' => $player['firstName']['default'],
+                            'last_name' => $player['lastName']['default'],
+                            'position' => $player['positionCode'],
+                        ]
+                    );
+                }
+            }
+        }
 
         // resolve(NflMarketService::class)->syncPlayers();
 
-        // Cache::tags(['player-stats'])->flush();
+        Cache::tags(['nhl-player-stats'])->flush();
     }
 }

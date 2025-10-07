@@ -8,7 +8,7 @@ enum DigitalSportsTechNhlEnum: string
     case GOALS = 'Goals';
     case ASSISTS = 'Assists';
     case POINTS = 'Points';
-    case SHOTS = 'Shots';
+    case SHOTS = 'Shots%2520on%2520goal';
     case SAVES = 'Saves';
 
     public static function all()
@@ -25,38 +25,38 @@ enum DigitalSportsTechNhlEnum: string
     public static function getTeamIds()
     {
         return [
-            "ANA" => 9601,
-            "BOS" => 9602,
-            "BUF" => 9603,
-            "CAR" => 9604,
-            "CBJ" => 9605,
-            "CGY" => 9606,
-            "CHI" => 9607,
-            "COL" => 9608,
-            "DAL" => 9609,
-            "DET" => 9610,
-            "EDM" => 9611,
-            "FLA" => 9612,
-            "LAK" => 9613,
-            "MIN" => 9614,
-            "MTL" => 9615,
-            "NJD" => 9616,
-            "NSH" => 9617,
-            "NYI" => 9618,
-            "NYR" => 9619,
-            "OTT" => 9620,
-            "PHI" => 9621,
-            "PIT" => 9622,
-            "SEA" => 9623,
-            "SJS" => 9624,
-            "STL" => 9625,
-            "TBL" => 9626,
-            "TOR" => 9627,
-            "UTA" => 9628,
-            "VAN" => 9629,
-            "VGK" => 9630,
-            "WPG" => 9631,
-            "WSH" => 9632,
+            "ANA" => 6154,
+            "BOS" => 6150,
+            "BUF" => 6156,
+            "CAR" => 6157,
+            "CBJ" => 6160,
+            "CGY" => 6152,
+            "CHI" => 6164,
+            "COL" => 6169,
+            "DAL" => 6167,
+            "DET" => 6159,
+            "EDM" => 6175,
+            "FLA" => 6177,
+            "LAK" => 6173,
+            "MIN" => 6170,
+            "MTL" => 6148,
+            "NJD" => 6174,
+            "NSH" => 6162,
+            "NYI" => 6158,
+            "NYR" => 6161,
+            "OTT" => 6163,
+            "PHI" => 6172,
+            "PIT" => 6155,
+            "SEA" => 6654,
+            "SJS" => 6153,
+            "STL" => 6165,
+            "TBL" => 6176,
+            "TOR" => 6147,
+            "UTA" => 10189,
+            "VAN" => 6151,
+            "VGK" => 6171,
+            "WPG" => 6166,
+            "WSH" => 6149,
         ];
     }
 
