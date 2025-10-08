@@ -12,6 +12,7 @@ class NhlGameMarket extends Model
     public $fillable = [
         'game_id',
         'favorite_team_id',
+        'handicap',
         'total_points',
         'away_team_solo_points',
         'home_team_solo_points',

@@ -109,7 +109,7 @@ class NhlExternalService
 
             $gameAttributes = [
                 'season' => $data['season'] ?? null,
-                'start_at' => isset($data['startTimeUTC']) ? Carbon::parse($data['startTimeUTC']) : null,
+                'start_at' => $data['gameDate'],
                 'away_team_id' => $awayTeam->id,
                 'home_team_id' => $homeTeam->id,
                 'is_completed' => $isCompleted,
@@ -230,6 +230,12 @@ class NhlExternalService
 
     protected function upsertPlayerStat(NhlGame $game, NhlTeam $team, array $playerData): void
     {
+        $timeOnIce = $this->parseTimeToMinutes($playerData['toi'] ?? null);
+
+        if (!$timeOnIce) {
+            return;
+        }
+
         $player = $this->resolvePlayer($team, $playerData);
 
         if (!$player) {
@@ -244,15 +250,12 @@ class NhlExternalService
         ]);
 
         $stat->is_starter = $this->isStarter($playerData);
-        $stat->time = $this->parseTimeToMinutes($playerData['toi'] ?? null);
+        $stat->time = $timeOnIce;
         $stat->goals = (int) ($playerData['goals'] ?? 0);
         $stat->shots = (int) ($isGoalie ? ($playerData['shotsAgainst'] ?? 0) : ($playerData['sog'] ?? 0));
         $stat->assists = (int) ($playerData['assists'] ?? 0);
         $stat->points = (int) ($playerData['points'] ?? 0);
-        $stat->hits = (int) ($playerData['hits'] ?? 0);
-        $stat->blocked_shots = (int) ($playerData['blockedShots'] ?? 0);
         $stat->saves = (int) ($playerData['saves'] ?? ($this->extractSavesFromShotsAgainst($playerData) ?? 0));
-        $stat->goals_against = (int) ($playerData['goalsAgainst'] ?? 0);
         $stat->save();
     }
 

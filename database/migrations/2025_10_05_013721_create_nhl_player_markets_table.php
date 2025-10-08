@@ -20,6 +20,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('assists')->default(0);
             $table->unsignedTinyInteger('points')->default(0);
             $table->unsignedTinyInteger('saves')->default(0);
+            $table->timestamps();
         });
     }
 

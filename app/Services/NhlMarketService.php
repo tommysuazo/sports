@@ -369,7 +369,7 @@ class NhlMarketService
         );
 
         $handicap = $this->normalizeHandicapValue($this->extractPrincipalValue($teamPayload, 'handicap win'));
-        $totalPoints = $this->extractPrincipalValue($teamPayload, 'total points');
+        $totalPoints = $this->extractPrincipalValue($teamPayload, 'total goals');
         $awaySoloPoints = $this->extractPrincipalValue($teamPayload, 'away team total points');
         $homeSoloPoints = $this->extractPrincipalValue($teamPayload, 'home team total points');
 

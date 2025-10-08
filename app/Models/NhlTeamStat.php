@@ -8,4 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class NhlTeamStat extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'game_id',
+        'team_id',
+        'goals',
+        'shots',
+    ];
 }

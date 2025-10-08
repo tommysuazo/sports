@@ -6,6 +6,7 @@ use App\Enums\DigitalSportsTech\DigitalSportsTechNhlEnum;
 use App\Models\NhlPlayer;
 use App\Models\NhlTeam;
 use App\Services\NhlExternalService;
+use App\Services\NhlMarketService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -84,7 +85,7 @@ class NhlSeeder extends Seeder
             }
         }
 
-        // resolve(NflMarketService::class)->syncPlayers();
+        resolve(NhlMarketService::class)->syncPlayers();
 
         Cache::tags(['nhl-player-stats'])->flush();
     }
