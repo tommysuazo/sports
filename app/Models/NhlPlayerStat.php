@@ -20,4 +20,18 @@ class NhlPlayerStat extends Model
         'points',
         'saves',
     ];
+
+    protected $casts = [
+        'is_starter' => 'boolean',
+    ];
+
+    public function game()
+    {
+        return $this->belongsTo(NhlGame::class, 'game_id');
+    }
+
+    public function player()
+    {
+        return $this->belongsTo(NhlPlayer::class, 'player_id');
+    }
 }

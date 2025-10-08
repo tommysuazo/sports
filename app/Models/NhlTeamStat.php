@@ -15,4 +15,14 @@ class NhlTeamStat extends Model
         'goals',
         'shots',
     ];
+
+    public function game()
+    {
+        return $this->belongsTo(NhlGame::class, 'game_id');
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(NhlTeam::class, 'team_id');
+    }
 }
