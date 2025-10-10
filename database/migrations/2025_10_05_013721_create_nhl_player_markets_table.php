@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('game_id')->constrained('nhl_games');
             $table->foreignId('player_id')->constrained('nhl_players');
-            $table->unsignedTinyInteger('goals')->default(0);
-            $table->unsignedTinyInteger('shots')->default(0);
-            $table->unsignedTinyInteger('assists')->default(0);
-            $table->unsignedTinyInteger('points')->default(0);
-            $table->unsignedTinyInteger('saves')->default(0);
+            $table->decimal('goals', 5, 1)->nullable();
+            $table->decimal('shots', 5, 1)->nullable();
+            $table->decimal('assists', 5, 1)->nullable();
+            $table->decimal('points', 5, 1)->nullable();
+            $table->decimal('saves', 5, 1)->nullable();
             $table->timestamps();
         });
     }
