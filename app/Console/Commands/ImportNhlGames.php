@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\NhlGame;
 use App\Services\NhlExternalService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -12,7 +13,7 @@ class ImportNhlGames extends Command
     /**
      * artisan nhl:import-games
      */
-    protected $signature = 'nhl:import-games {--today} {--current}';
+    protected $signature = 'nhl:import-games {--all}';
 
     protected $description = 'Importa los juegos de la NHL según el rango solicitado.';
 
@@ -24,56 +25,56 @@ class ImportNhlGames extends Command
 
     public function handle(): int
     {
-        $seasonStart = Carbon::create(2025, 10, 7)->startOfDay();
-        $seasonEnd = Carbon::create(2026, 6, 30)->endOfDay();
+        if ((bool) $this->option('all')) {
+            $startDate = Carbon::parse(config('nhl.start_date'));
+            $endDate   = Carbon::parse(config('nhl.end_date'));
 
-        $todayOption = (bool) $this->option('today');
-        $currentOption = (bool) $this->option('current');
-
-        if ($todayOption && $currentOption) {
-            $this->error('No puedes combinar las opciones --today y --current.');
-            return Command::FAILURE;
-        }
-
-        $today = Carbon::today();
-
-        if ($todayOption) {
-            $rangeStart = $today->copy()->subDay();
-            $rangeEnd = $today->copy();
-        } elseif ($currentOption) {
-            $rangeStart = $seasonStart->copy();
-            $rangeEnd = $today->copy()->endOfMonth();
-        } else {
-            $rangeStart = $today->copy()->startOfMonth();
-            if ($today->year === 2025 && $today->month === 10) {
-                $rangeStart = Carbon::create(2025, 10, 7);
+            while ($startDate->lte($endDate)) {
+                $date = $startDate->toDateString();
+                $this->info("Importando juegos NHL para la fecha {$date}...");
+                $this->nhlExternalService->importGamesByDate($date);
+                $startDate->addDay();
             }
-            $rangeEnd = $today->copy()->endOfMonth();
-        }
+        } else {
+            // 1) Tomar la última fecha de un juego COMPLETADO; si no existe, usar start_date de la config
+            $lastCompletedGameDate = NhlGame::query()
+                ->where('is_completed', 1)
+                ->orderByDesc('start_at')
+                ->value('start_at'); // devuelve string/date o null
 
-        $startDate = $rangeStart->copy();
-        if ($startDate->lt($seasonStart)) {
-            $startDate = $seasonStart->copy();
-        }
+            $cursorDate = $lastCompletedGameDate
+                ? Carbon::parse($lastCompletedGameDate)->startOfDay()
+                : Carbon::parse(config('nhl.start_date'))->startOfDay();
 
-        $endDate = $rangeEnd->copy();
-        if ($endDate->gt($seasonEnd)) {
-            $endDate = $seasonEnd->copy();
-        }
+            // Límite superior: no pasar de hoy ni del end_date de la config
+            $seasonEnd = Carbon::parse(config('nhl.end_date'))->endOfDay();
+            $todayEnd  = Carbon::today()->endOfDay();
+            $untilDate = $seasonEnd->lt($todayEnd) ? $seasonEnd : $todayEnd;
 
-        if ($startDate->gt($endDate)) {
-            $this->error('El intervalo seleccionado está fuera de la temporada 2025-2026 de la NHL.');
-            return Command::FAILURE;
-        }
+            // Si por alguna razón el cursor quedó después del límite, no hacemos nada
+            if ($cursorDate->gt($untilDate)) {
+                $this->warn('No hay fechas a procesar dentro del rango permitido.');
+            } else {
+                // 2) Procesar día a día: solo avanzar si el último juego importado está completado
+                while ($cursorDate->lte($untilDate)) {
+                    $dateStr = $cursorDate->toDateString();
+                    $this->info("Importando juegos NHL para la fecha {$dateStr}...");
 
-        $currentDate = $startDate->copy();
+                    // Debe devolver el último juego importado (o null si no hubo importaciones/errores)
+                    $lastImported = $this->nhlExternalService->importGamesByDate($dateStr);
 
-        while ($currentDate->lte($endDate)) {
-            $date = $currentDate->toDateString();
-            $this->info("Importando juegos NHL para la fecha {$date}...");
-            $this->nhlExternalService->importGamesByDate($date);
-            $currentDate->addDay();
+                    // Si no hay resultado o no está completado, se detiene la ejecución
+                    if ($lastImported !== null && (int) $lastImported->is_completed !== 1) {
+                        $this->info('Se detiene la importación porque el último juego importado no está completado aún.');
+                        break;
+                    }
+
+                    // Último importado completado: avanzar al día siguiente
+                    $cursorDate->addDay();
+                }
+            }
         }
+    
 
         Cache::tags(['nhl-player-stats'])->flush();
 

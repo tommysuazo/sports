@@ -65,7 +65,9 @@ return [
     |
     */
 
-    'timezone' => 'America/Santo_Domingo',
+    'timezone' => 'UTC',
+
+    'user_timezone' => 'America/Santo_Domingo',
 
     /*
     |--------------------------------------------------------------------------

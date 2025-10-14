@@ -8,6 +8,7 @@ use App\Models\NhlPlayer;
 use App\Models\NhlPlayerMarket;
 use App\Models\NhlTeam;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
@@ -18,7 +19,7 @@ class NhlMarketService
         'Goals' => 'goals',
         'Assists' => 'assists',
         'Points' => 'points',
-        'Shots' => 'shots',
+        'Shots%20on%20goal' => 'shots',
         'Saves' => 'saves',
     ];
 
@@ -36,44 +37,64 @@ class NhlMarketService
 
     public function getLiveMarkets($date = null): Collection
     {
+        $tz = config('app.user_timezone', 'America/Santo_Domingo');
+
+        $localDay = $date
+            ? CarbonImmutable::parse($date, $tz)
+            : CarbonImmutable::now($tz);
+
+        // Ventana del día local -> UTC
+        $startUtc = $localDay->startOfDay()->setTimezone('UTC');
+        $endUtc   = $startUtc->addDay();
+
         return NhlGame::with(['homeTeam', 'awayTeam', 'market', 'playerMarkets',])
-            ->whereDate('start_at', $date ?? today()->toDateString())
+            ->where('start_at', '>=', $startUtc)
+            ->where('start_at', '<',  $endUtc)
             ->get();
     }
 
     public function getMatchups($date = null): Collection
     {
-        $matchups = NhlGame::query()
+        $tz = config('app.user_timezone', 'America/Santo_Domingo');
+
+        $localDay = $date
+            ? CarbonImmutable::parse($date, $tz)
+            : CarbonImmutable::now($tz);
+
+        // Ventana del día local -> UTC
+        $startUtc = $localDay->startOfDay()->setTimezone('UTC');
+        $endUtc   = $startUtc->addDay();
+
+        // Pivote para separar “próximos” de “pasados”
+        // Si el día es hoy, usamos "ahora"; de lo contrario, tratamos todo como "próximo"
+        $pivotUtc = $localDay->isSameDay(CarbonImmutable::now($tz))
+            ? CarbonImmutable::now('UTC')
+            : $startUtc;
+
+        $playersWithStats = function ($playerQuery) {
+            $playerQuery
+                ->whereNotNull('market_id')
+                ->with(['stats' => function ($q) {
+                    $q->orderByDesc('nhl_player_stats.game_id')->limit(5);
+                }]);
+        };
+
+        return NhlGame::query()
             ->with([
-                'awayTeam' => function ($query) {
-                    $query->with([
-                        'players' => function ($playerQuery) {
-                            $playerQuery->whereNotNull('nhl_players.market_id')
-                                ->with(['stats' => function ($scoreQuery) {
-                                    $scoreQuery->take(5)->orderByDesc('nhl_player_stats.game_id');
-                                }]);
-                        }
-                    ]);
-                },
-                'homeTeam' => function ($query) {
-                    $query->with([
-                        'players' => function ($playerQuery) {
-                            $playerQuery->whereNotNull('nhl_players.market_id')
-                                ->with(['stats' => function ($scoreQuery) {
-                                    $scoreQuery->take(5)->orderByDesc('nhl_player_stats.game_id');
-                                }]);
-                        }
-                    ]);
-                },
-            ]);
-
-        if (!$date) {
-            $matchups->where('is_completed', false);
-        }
-
-        return $matchups
-            ->whereDate('start_at', $date ?? today()->toDateString())
-            ->orderBy('start_at')
+                'awayTeam' => fn ($q) => $q->with(['players' => $playersWithStats]),
+                'homeTeam' => fn ($q) => $q->with(['players' => $playersWithStats]),
+            ])
+            ->where('start_at', '>=', $startUtc)
+            ->where('start_at', '<',  $endUtc)
+            ->orderByRaw(
+                // 1) Próximos primero (start_at >= pivot -> 0), luego pasados (1)
+                // 2) Entre próximos: ASC (más cercano primero)
+                // 3) Entre pasados: DESC (el más reciente primero)
+                "CASE WHEN start_at >= ? THEN 0 ELSE 1 END,
+                CASE WHEN start_at >= ? THEN start_at END ASC,
+                CASE WHEN start_at <  ? THEN start_at END DESC",
+                [$pivotUtc, $pivotUtc, $pivotUtc]
+            )
             ->get();
     }
 
@@ -411,6 +432,8 @@ class NhlMarketService
 
         $playerRows = [];
 
+        Log::info('STAT BLOCK', $statBlocks);
+
         foreach ($statBlocks as $block) {
             foreach ($block['payload'] as $statEntry) {
                 foreach ($statEntry['players'] ?? [] as $playerBlock) {
@@ -466,7 +489,8 @@ class NhlMarketService
                 }
             }
 
-            if (!empty($updates)) {
+            if (!empty($updates)) {                
+                Log::info('Player ID:' . $attributes['player_id'],  $updates);
                 NhlPlayerMarket::updateOrCreate($attributes, $updates);
             }
         }

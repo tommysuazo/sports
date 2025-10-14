@@ -73,9 +73,13 @@ class NhlExternalService
 
         $gameIds = self::getGameIdsByDate($date);
 
+        $lastGameImported = null;
+
         foreach ($gameIds as $gameId) {
-            $this->createGame($gameId);
+            $lastGameImported = $this->createGame($gameId);
         }
+
+        return $lastGameImported;
     }
 
     public function createGame($gameId)
@@ -109,7 +113,7 @@ class NhlExternalService
 
             $gameAttributes = [
                 'season' => $data['season'] ?? null,
-                'start_at' => $data['gameDate'],
+                'start_at' => $data['startTimeUTC'],
                 'away_team_id' => $awayTeam->id,
                 'home_team_id' => $homeTeam->id,
                 'is_completed' => $isCompleted,

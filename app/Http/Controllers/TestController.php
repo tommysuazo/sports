@@ -24,6 +24,7 @@ class TestController extends Controller
 
     public function __invoke()
     {
+        return (now());
         // teams list
         // https://api-web.nhle.com/v1/standings/2025-04-17
         

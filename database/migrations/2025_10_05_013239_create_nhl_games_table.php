@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('external_id');
             $table->string('market_id')->nullable();
             $table->integer('season');
-            $table->date('start_at');
+            $table->timestamp('start_at');
             $table->boolean('is_completed');
             $table->foreignId('away_team_id')->constrained('nhl_teams');
             $table->foreignId('home_team_id')->constrained('nhl_teams');
