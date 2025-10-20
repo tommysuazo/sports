@@ -25,6 +25,10 @@ Route::middleware(['api'])->group(function () {
     Route::get('/test', TestController::class);
 
     Route::prefix('/nba')->group(function () {
+        Route::prefix('/injuries')->group(function () {
+            Route::get('/', [NbaGameController::class, 'importByDateRange']);
+        });
+
         Route::prefix('/games')->group(function () {
             Route::post('/import', [NbaGameController::class, 'importByDateRange']);
         });

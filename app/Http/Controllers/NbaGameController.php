@@ -84,6 +84,11 @@ class NbaGameController extends Controller
         $this->nbaGameService->importGamesByDateRange($request->validated());
     }
 
+    public function getLineups()
+    {
+        return $this->nbaGameService->getLineups();
+    }
+
     public function show(NbaGame $nbaGame)
     {
         //

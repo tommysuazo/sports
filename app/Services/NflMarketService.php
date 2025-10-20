@@ -58,7 +58,9 @@ class NflMarketService
 
     public function getMatchups($week = null): Collection
     {
-        $targetWeek = $week ?? NflWeekEnum::current();
+        $targetWeek = is_null($week) 
+            ? NflWeekEnum::current()
+            : NflWeekEnum::getWeek((int) $week);
 
         if (!$targetWeek) {
             Log::warning('No se pudo determinar la semana actual de la NFL para obtener enfrentamientos');

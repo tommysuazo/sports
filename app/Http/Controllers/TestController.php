@@ -24,7 +24,23 @@ class TestController extends Controller
 
     public function __invoke()
     {
-        return (now());
+        // $repo = resolve(NbaStatsService::class);
+
+        // $games = $repo->getGameByid("0022401128");
+        
+        // return $games->json();
+
+        // return $repo->getGameByid('0022400184')->json();
+
+
+        $request = Http::get("https://www.rotowire.com/basketball/tables/teams");
+
+        return $request->getBody();
+
+
+
+
+        // return (now());
         // teams list
         // https://api-web.nhle.com/v1/standings/2025-04-17
         
@@ -42,23 +58,24 @@ class TestController extends Controller
 
         // $teams = NhlTeam::all();
 
-        Log::info('Inicio de migracion de equipos de NHL');
+        // Log::info('Inicio de migracion de equipos de NHL');
 
-        $data = NhlExternalService::getTeams();
+        // $data = NhlExternalService::getTeams();
         
-        if (!empty($data['standings'])) {
-            foreach ($data['standings'] as $teamData) {
-                if (empty($teamData['teamAbbrev']) || empty($teamData['teamAbbrev']['default'])) {
-                    continue;
-                }
+        // if (!empty($data['standings'])) {
+        //     foreach ($data['standings'] as $teamData) {
+        //         if (empty($teamData['teamAbbrev']) || empty($teamData['teamAbbrev']['default'])) {
+        //             continue;
+        //         }
 
-                $allTeamInfo[$teamData['teamAbbrev']['default']] = $teamData;
-            }
-        }
+        //         $allTeamInfo[$teamData['teamAbbrev']['default']] = $teamData;
+        //     }
+        // }
 
-        ksort($allTeamInfo);
+        // ksort($allTeamInfo);
 
-        return $allTeamInfo;
+        // return $allTeamInfo;
+
         // resolve(NflMarketService::class)->syncMarkets();
 
         // return resolve(NflMarketService::class)->getMatchups(NflWeekEnum::WEEK_4);

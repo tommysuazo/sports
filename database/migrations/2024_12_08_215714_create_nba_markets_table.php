@@ -11,21 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('nba_markets', function (Blueprint $table) {
+        Schema::create('nba_game_markets', function (Blueprint $table) {
             $table->id();
-            $table->integer('points');
-            $table->integer('first_half_points');
-            $table->integer('second_half_points');
-            $table->integer('first_quarter_points');
-            $table->integer('second_quarter_points');
-            $table->integer('third_quarter_points');
-            $table->integer('fourth_quarter_points');
-            $table->integer('assists');
-            $table->integer('rebounds');
-            $table->integer('steals');
-            $table->integer('blocks');
-            $table->integer('turnovers');
-            $table->integer('fouls');
+            $table->foreignId('favorite_team_id')->constrained('nba_teams');
+            $table->unsignedTinyInteger('handicap');
+            $table->unsignedTinyInteger('points');
+            $table->unsignedTinyInteger('first_half_handicap')->nullable();
+            $table->unsignedTinyInteger('first_half_points')->nullable();
+            $table->unsignedTinyInteger('first_quarter_points')->nullable();
+            $table->unsignedTinyInteger('second_quarter_points')->nullable();
+            $table->unsignedTinyInteger('third_quarter_points')->nullable();
+            $table->unsignedTinyInteger('fourth_quarter_points')->nullable();
             $table->timestamps();
         });
     }

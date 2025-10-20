@@ -12,14 +12,14 @@ class NflMarketController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         return $this->nflMarketService->getLiveMarkets();
     }
 
-    public function matchups()
+    public function matchups(Request $request)
     {
-        return $this->nflMarketService->getMatchups();
+        return $this->nflMarketService->getMatchups($request->input('week'));
     }
 
     public function sync()

@@ -17,13 +17,14 @@ class NbaGameRepository
         return NbaGame::firstWhere('external_id', $externalId);
     }
 
-    public function create(array $data, NbaTeam $awayTeam, NbaTeam $homeTeam): NbaGame
+    public function updateOrCreate(array $data, $externalId, NbaTeam $awayTeam, NbaTeam $homeTeam): NbaGame
     {
-        return NbaGame::create([
-            'external_id' => $data['external_id'] ?? null,
+        return NbaGame::updateOrCreate([
+            'external_id' => $externalId,
+        ],[
             'away_team_id' => $awayTeam->id,
             'home_team_id' => $homeTeam->id,
-            'started_at' => $data['started_at'],
+            'start_at' => $data['start_at'],
         ]);
     }
 }

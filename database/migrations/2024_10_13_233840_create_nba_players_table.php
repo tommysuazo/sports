@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('first_name');
             $table->string('last_name');
             $table->foreignId('team_id')->nullable()->constrained('nba_teams');
+            $table->timestamps();
         });
     }
 

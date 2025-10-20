@@ -24,6 +24,7 @@ class NbaTeamScoreRepository extends MultiLeagueRepository
         return NbaTeamScore::create([
             'game_id' => $nbaGame->id,
             'team_id' => $nbaTeam->id,
+            'is_away' => $data['is_away'],
             'points' => $data['points'],
             'first_half_points' => $data['first_half_points'],
             'second_half_points' => $data['second_half_points'],

@@ -13,12 +13,15 @@ return new class extends Migration
     {
         Schema::create('nba_teams', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
             // $table->string('sportsnet_id')->unique();
             $table->string('external_id')->unique();
             $table->string('market_id')->nullable()->unique();
+            $table->string('name');
             $table->string('short_name', 5);
             $table->string('city');
+            $table->unsignedTinyInteger('wins')->default(0);
+            $table->unsignedTinyInteger('losses')->default(0);
+            $table->timestamps();
 
             
             // $table->decimal('average_points', 5, 1)->default(0);

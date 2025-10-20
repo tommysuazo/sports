@@ -32,6 +32,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('three_pointers_attempted');
             $table->unsignedTinyInteger('free_throws_made');
             $table->unsignedTinyInteger('free_throws_attempted');
+            $table->timestamps();
         });
     }
 

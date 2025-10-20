@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NBA\NbaExternalGameStatusEnum;
 use App\Exceptions\KnownException;
 use App\Models\NbaGame;
 use App\Models\NbaPlayer;
@@ -87,10 +88,7 @@ class NbaStatsService
 
     public function getGameByid(string $gameId)
     {
-        $request = Http::withHeaders(self::HEADERS)
-            ->get(self::BASE_URL . '/stats/boxscoretraditionalv3' .
-                '?EndPeriod=1&EndRange=0&RangeType=0&StartPeriod=1&StartRange=0&GameID=' . $gameId
-            );
+        $request = Http::withHeaders(self::HEADERS)->get(self::BASE_URL . '/stats/boxscoretraditionalv3?GameID=' . $gameId);
 
         if (!$request->successful()) {
             throw new knownException("Fallo al intentar obtener el juego con ID {$gameId}");
@@ -108,7 +106,7 @@ class NbaStatsService
             throw new knownException("Fallo al intentar obtener las alineaciones del dia de hoy");
         }
 
-        return $request;
+        return $request->json();
     }
 
     public function importGamesByDate(Carbon $date)
@@ -117,45 +115,58 @@ class NbaStatsService
 
         $games = $this->getGamesByDate($date);
 
-        foreach ($games as $game) {
-            $this->createGame($game['gameId'], $game['awayTeam']['periods'], $game['homeTeam']['periods']);
+        foreach ($games as $gameData) {
+            $this->createGame($gameData);
         }
     }
 
-    public function createGame(string $gameId, array $awayQuarters, array $homeQuarters): null|NbaGame
+    public function createGame(array $gameData): NbaGame
     {
-        Log::info("Creando juego de NBA con ID externo " . $gameId);
-
-        if ($this->nbaGameRepository->findByExternalId($gameId)) {
-            return null;
-        }
-
-        $data = $this->getGameByid($gameId);
-
-        if (!$data['boxScoreTraditional']['homeTeam']['statistics']) {
-            return null;
-        }
+        Log::info("Creando juego de NBA con ID externo " . $gameData['gameId']);
 
         DB::beginTransaction();
 
+        
         try {
-            $startedAt = Carbon::parse($data['meta']['time']);
+            $game = NbaGame::firstWhere('external_id', $gameData['gameId']);
+    
+            if (!$game) {
+                $game = NbaGame::create([
+                    'external_id' => $gameData['gameId'],
+                    'away_team_id' => NbaTeam::firstWhere('external_id', $gameData['awayTeam']['teamId'])->id,
+                    'home_team_id' => NbaTeam::firstWhere('external_id', $gameData['homeTeam']['teamId'])->id,
+                    'start_at' => $gameData['gameTimeUTC'],
+                    'is_completed' => false,
+                ]);
+            }
 
-            $data = $data['boxScoreTraditional'];
-
-            Log::info("away team: " . $data['awayTeamId'] . " - home team: " . $data['homeTeamId']);
-
-            $awayTeam = NbaTeam::firstWhere('external_id', $data['awayTeamId']);
-            $homeTeam = NbaTeam::firstWhere('external_id', $data['homeTeamId']);
-
-            $game = $this->nbaGameRepository->create([
-                'external_id' => $data['gameId'],
-                'started_at' => $startedAt->toDateTimeString(),
-            ], $awayTeam, $homeTeam);
-
-            $this->createNbaTeamScore($data['awayTeam'] + ['quarters' => $awayQuarters], $game, $awayTeam);
-
-            $this->createNbaTeamScore($data['homeTeam'] + ['quarters' => $homeQuarters], $game, $homeTeam);
+            if (!$game->is_completed && $gameData['gameStatus'] === NbaExternalGameStatusEnum::COMPLETED->value) {
+                Log::info("Away team: {$gameData['awayTeam']['teamTricode']} - Home team: {$gameData['homeTeam']['teamTricode']}");
+    
+                $data = $this->getGameByid($gameData['gameId']);
+    
+                $data = $data['boxScoreTraditional'];
+    
+                $awayTeamScore = $this->createNbaTeamScore(
+                    $data['awayTeam'] + ['quarters' => $gameData['awayTeam']['periods']], 
+                    $game, 
+                    $game->awayTeam
+                );
+    
+                $homeTeamScore = $this->createNbaTeamScore(
+                    $data['homeTeam'] + ['quarters' => $gameData['homeTeam']['periods']],
+                    $game,
+                    $game->homeTeam
+                );
+    
+                $game->is_completed = true;
+    
+                $game->winner_team_id = $awayTeamScore->points > $homeTeamScore->points
+                    ? $game->away_team_id
+                    : $game->home_team_id;
+    
+                $game->save();
+            }
 
             DB::commit();
 
@@ -182,6 +193,7 @@ class NbaStatsService
 
         return $this->nbaTeamScoreRepository->create([
             'points' => $statistics['points'],
+            'is_away' => $nbaTeam->away_team_id === $nbaGame->id ? true : false,
             'first_half_points' => $firstQuarterPoints + $secondQuarterPoints,
             'second_half_points' => $thirdQuarterPoints + $fourthQuarterPoints + $overtimes->sum('scores'),
             'first_quarter_points' => $firstQuarterPoints,
@@ -224,10 +236,6 @@ class NbaStatsService
                 ], $nbaTeam);
             }
 
-            if ($player->team_id != $nbaTeam->id) {
-                $this->nbaPlayerRepository->updateTeam($player, $nbaTeam);
-            }
-
             $statistics = $playerScore['statistics'];
 
             if (!$statistics || empty($statistics['minutes']) || in_array($statistics['minutes'], ['0:00', '00:00'])) {
@@ -237,6 +245,7 @@ class NbaStatsService
 
             $this->nbaPlayerScoreRepository->create([
                 'is_starter' => $starterCount++ < 5,
+                'is_away' => $nbaTeam->away_team_id === $nbaGame->id ? true : false,
                 'mins' => $statistics['minutes'],
                 'points' => $statistics['points'],
                 'rebounds' => $statistics['reboundsTotal'],

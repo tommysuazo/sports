@@ -8,6 +8,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class NbaTeam extends BasketballTeam
 {
+    use HasFactory;
+
+    protected $fillable = [
+        'external_id',
+        'market_id',
+        'name',
+        'short_name',
+        'city',
+        'wins',
+        'losses',
+    ];
+
     public function players(): HasMany
     {
         return $this->hasMany(NbaPlayer::class, 'team_id');

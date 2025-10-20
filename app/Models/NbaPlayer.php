@@ -2,11 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class NbaPlayer extends BasketballPlayer
+class NbaPlayer extends Model
 {
+    use HasFactory;
+    
+    protected $fillable = [
+        'external_id',
+        'market_id',
+        'first_name',
+        'last_name',
+        'team_id',
+    ];
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(NbaTeam::class);

@@ -19,6 +19,7 @@ class NbaPlayerScoreRepository
             'game_id' => $nbaGame->id,
             'team_id' => $nbaTeam->id,
             'player_id' => $nbaPlayer->id,
+            'is_away' => $data['is_away'],
             'is_starter' => $data['is_starter'],
             'mins' => $data['mins'],
             'points' => $data['points'],
