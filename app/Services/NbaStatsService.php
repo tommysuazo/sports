@@ -21,26 +21,6 @@ use Illuminate\Support\Facades\Log;
 
 class NbaStatsService
 {
-    const HEADERS = [
-        "ocp-apim-subscription-key" => "747fa6900c6c4e89a58b81b72f36eb96",
-        "Accept" => " */*",
-        "Accept-Encoding" => " gzip, deflate, br, zstd",
-        "Accept-Language" => " es-ES,es;q=0.9",
-        "Cache-Control" => " no-cache",
-        "Connection" => " keep-alive",
-        "Host" => " stats.nba.com",
-        "Origin" => " https://www.nba.com",
-        "Pragma" => " no-cache",
-        "Referer" => " https://www.nba.com/",
-        "Sec-Fetch-Dest" => " empty",
-        "Sec-Fetch-Mode" => " cors",
-        "Sec-Fetch-Site" => " same-site",
-        "User-Agent" => " Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-        "sec-ch-ua"=> "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\"",
-        "sec-ch-ua-mobile" => " ?0",
-        "sec-ch-ua-platform" => "Windows",
-    ];
-    
     const BASE_URL = 'https://stats.nba.com';
 
     public function __construct(
@@ -55,7 +35,7 @@ class NbaStatsService
 
     public static function getPlayers()
     {   
-        $request = Http::withHeaders(self::HEADERS)
+        $request = Http::withHeaders(self::headers())
             ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2024-25');
 
         if (!$request->successful()) {
@@ -76,7 +56,7 @@ class NbaStatsService
 
     public static function getGamesByDate(Carbon $date)
     {
-        $request = Http::withHeaders(self::HEADERS)
+        $request = Http::withHeaders(self::headers())
             ->get(self::BASE_URL . '/stats/scoreboardv3?DayOffset=0&LeagueID=00&GameDate=' . $date->toDateString());
 
         if (!$request->successful()) {
@@ -88,10 +68,10 @@ class NbaStatsService
 
     public function getGameByid(string $gameId)
     {
-        $request = Http::withHeaders(self::HEADERS)->get(self::BASE_URL . '/stats/boxscoretraditionalv3?GameID=' . $gameId);
+        $request = Http::withHeaders(self::headers())->get(self::BASE_URL . '/stats/boxscoretraditionalv3?GameID=' . $gameId);
 
         if (!$request->successful()) {
-            throw new knownException("Fallo al intentar obtener el juego con ID {$gameId}");
+            throw new KnownException("Fallo al intentar obtener el juego con ID {$gameId}");
         }
         
         return $request;
@@ -99,11 +79,11 @@ class NbaStatsService
 
     public static function getTodayLineups()
     {
-        $request = Http::withHeaders(self::HEADERS)
+        $request = Http::withHeaders(self::headers())
             ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
         
         if (!$request->successful()) {
-            throw new knownException("Fallo al intentar obtener las alineaciones del dia de hoy");
+            throw new KnownException("Fallo al intentar obtener las alineaciones del dia de hoy");
         }
 
         return $request->json();
@@ -129,12 +109,18 @@ class NbaStatsService
         
         try {
             $game = NbaGame::firstWhere('external_id', $gameData['gameId']);
-    
+            $awayTeam = NbaTeam::firstWhere('external_id', $gameData['awayTeam']['teamId']);
+            $homeTeam = NbaTeam::firstWhere('external_id', $gameData['homeTeam']['teamId']);
+
+            if (!$awayTeam || !$homeTeam) {
+                throw new KnownException("No se pudieron localizar los equipos del juego {$gameData['gameId']}");
+            }
+
             if (!$game) {
                 $game = NbaGame::create([
                     'external_id' => $gameData['gameId'],
-                    'away_team_id' => NbaTeam::firstWhere('external_id', $gameData['awayTeam']['teamId'])->id,
-                    'home_team_id' => NbaTeam::firstWhere('external_id', $gameData['homeTeam']['teamId'])->id,
+                    'away_team_id' => $awayTeam->id,
+                    'home_team_id' => $homeTeam->id,
                     'start_at' => $gameData['gameTimeUTC'],
                     'is_completed' => false,
                 ]);
@@ -161,11 +147,14 @@ class NbaStatsService
     
                 $game->is_completed = true;
     
-                $game->winner_team_id = $awayTeamScore->points > $homeTeamScore->points
-                    ? $game->away_team_id
-                    : $game->home_team_id;
-    
+                $awayTeamWon = $awayTeamScore->points > $homeTeamScore->points;
+                $game->winner_team_id = $awayTeamWon ? $game->away_team_id : $game->home_team_id;
                 $game->save();
+    
+                $winnerTeam = $awayTeamWon ? $awayTeam : $homeTeam;
+                $loserTeam = $awayTeamWon ? $homeTeam : $awayTeam;
+
+                $this->updateTeamRecords($winnerTeam, $loserTeam);
             }
 
             DB::commit();
@@ -185,17 +174,17 @@ class NbaStatsService
         $statistics = $data['statistics'];
         $quarters = collect($data['quarters']);
 
-        $firstQuarterPoints = $quarters->firstWhere('period', 1)['score'];
-        $secondQuarterPoints = $quarters->firstWhere('period', 2)['score'];
-        $thirdQuarterPoints = $quarters->firstWhere('period', 3)['score'];
-        $fourthQuarterPoints = $quarters->firstWhere('period', 4)['score'];
+        $firstQuarterPoints = data_get($quarters->firstWhere('period', 1), 'score', 0);
+        $secondQuarterPoints = data_get($quarters->firstWhere('period', 2), 'score', 0);
+        $thirdQuarterPoints = data_get($quarters->firstWhere('period', 3), 'score', 0);
+        $fourthQuarterPoints = data_get($quarters->firstWhere('period', 4), 'score', 0);
         $overtimes = $quarters->where('periodType', 'OVERTIME');
 
         return $this->nbaTeamScoreRepository->create([
             'points' => $statistics['points'],
-            'is_away' => $nbaTeam->away_team_id === $nbaGame->id ? true : false,
+            'is_away' => $nbaGame->away_team_id === $nbaTeam->id,
             'first_half_points' => $firstQuarterPoints + $secondQuarterPoints,
-            'second_half_points' => $thirdQuarterPoints + $fourthQuarterPoints + $overtimes->sum('scores'),
+            'second_half_points' => $thirdQuarterPoints + $fourthQuarterPoints + $overtimes->sum('score'),
             'first_quarter_points' => $firstQuarterPoints,
             'second_quarter_points' => $secondQuarterPoints,
             'third_quarter_points' => $thirdQuarterPoints,
@@ -245,7 +234,7 @@ class NbaStatsService
 
             $this->nbaPlayerScoreRepository->create([
                 'is_starter' => $starterCount++ < 5,
-                'is_away' => $nbaTeam->away_team_id === $nbaGame->id ? true : false,
+                'is_away' => $nbaGame->away_team_id === $nbaTeam->id,
                 'mins' => $statistics['minutes'],
                 'points' => $statistics['points'],
                 'rebounds' => $statistics['reboundsTotal'],
@@ -262,5 +251,28 @@ class NbaStatsService
                 'free_throws_attempted' => $statistics['freeThrowsAttempted'],
             ], $nbaGame, $nbaTeam, $player);
         }
+    }
+
+    protected function updateTeamRecords(NbaTeam $winner, NbaTeam $loser): void
+    {
+        $this->nbaTeamRepository->syncRecordWithGames($winner);
+        $this->nbaTeamRepository->syncRecordWithGames($loser);
+    }
+
+    protected static function headers(): array
+    {
+        return [
+            "Accept-Encoding" => " gzip, deflate, br, zstd",
+            "Cache-Control" => " no-cache",
+            "Connection" => " keep-alive",
+            "Origin" => " https://www.nba.com",
+            "Pragma" => " no-cache",
+            "Referer" => " https://www.nba.com/",
+            "Sec-Fetch-Mode" => " cors",
+            "User-Agent" => " Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            "sec-ch-ua"=> "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\"",
+            "sec-ch-ua-mobile" => " ?0",
+            "sec-ch-ua-platform" => "Windows",
+        ];
     }
 }

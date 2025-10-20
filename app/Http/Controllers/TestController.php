@@ -24,18 +24,18 @@ class TestController extends Controller
 
     public function __invoke()
     {
-        // $repo = resolve(NbaStatsService::class);
+        $repo = resolve(NbaStatsService::class);
 
-        // $games = $repo->getGameByid("0022401128");
+        $games = $repo->getGameByid("0022401128");
         
-        // return $games->json();
+        return $games->json();
 
         // return $repo->getGameByid('0022400184')->json();
 
 
-        $request = Http::get("https://www.rotowire.com/basketball/tables/teams");
+        // $request = Http::get("https://www.rotowire.com/basketball/tables/teams");
 
-        return $request->getBody();
+        // return $request->getBody();
 
 
 
