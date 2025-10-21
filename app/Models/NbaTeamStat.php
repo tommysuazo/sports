@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class NbaTeamScore extends Model
+class NbaTeamStat extends Model
 {
     use HasFactory;
 
@@ -36,7 +36,7 @@ class NbaTeamScore extends Model
         'free_throws_made',
         'free_throws_attempted',
     ];
-    
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(NbaTeam::class, 'team_id', 'id');

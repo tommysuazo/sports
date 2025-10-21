@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\NbaGame;
-use App\Services\NbaStatsService;
+use App\Services\NbaExternalService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -18,7 +18,7 @@ class ImportNbaGames extends Command
     protected $description = 'Importa los juegos de la NBA según el rango solicitado.';
 
     public function __construct(
-        protected NbaStatsService $nbaStatsService
+        protected NbaExternalService $NbaExternalService
     ) {
         parent::__construct();
     }
@@ -43,7 +43,7 @@ class ImportNbaGames extends Command
                 }
 
                 $this->info("Importando juegos NBA para la fecha {$date}...");
-                $this->nbaStatsService->importGamesByDate($startDate->copy());
+                $this->NbaExternalService->importGamesByDate($startDate->copy());
                 $startDate->addDay();
             }
         } else {
@@ -73,7 +73,7 @@ class ImportNbaGames extends Command
 
                     $this->info("Importando juegos NBA para la fecha {$dateStr}...");
 
-                    $lastImported = $this->nbaStatsService->importGamesByDate($cursorDate->copy());
+                    $lastImported = $this->NbaExternalService->importGamesByDate($cursorDate->copy());
 
                     if ($lastImported !== null && (int) $lastImported->is_completed !== 1) {
                         $this->info('Se detiene la importación porque el último juego importado no está completado aún.');

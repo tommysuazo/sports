@@ -11,20 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('nba_team_scores', function (Blueprint $table) {
+        Schema::create('nba_player_stats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('game_id')->constrained('nba_games');
             $table->foreignId('team_id')->constrained('nba_teams');
+            $table->foreignId('player_id')->constrained('nba_players');
             $table->boolean('is_away');
-            $table->unsignedSmallInteger('points');
-            $table->unsignedTinyInteger('first_half_points');
-            $table->unsignedTinyInteger('second_half_points');
-            $table->unsignedTinyInteger('first_quarter_points');
-            $table->unsignedTinyInteger('second_quarter_points');
-            $table->unsignedTinyInteger('third_quarter_points');
-            $table->unsignedTinyInteger('fourth_quarter_points');
-            $table->unsignedTinyInteger('overtimes');
-            $table->unsignedSmallInteger('overtime_points');
+            $table->boolean('is_starter');
+            $table->string('mins', 6);
+            $table->unsignedTinyInteger('points');
             $table->unsignedTinyInteger('assists');
             $table->unsignedTinyInteger('rebounds');
             $table->unsignedTinyInteger('steals');
@@ -46,6 +41,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('nba_team_scores');
+        Schema::dropIfExists('nba_player_stats');
     }
 };

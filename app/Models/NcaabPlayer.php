@@ -26,7 +26,7 @@ class NcaabPlayer extends BasketballPlayer
     public function homeScores(): HasMany
     {
         return $this->scores()
-            ->whereHas('game', fn($query) => $query->whereRaw('ncaab_games.home_team_id = nba_player_scores.team_id'));
+            ->whereHas('game', fn($query) => $query->whereRaw('ncaab_games.home_team_id = ncaab_player_scores.team_id'));
     }
     
     public function againstRivalScores(BasketballTeam $rivalTeam): HasMany

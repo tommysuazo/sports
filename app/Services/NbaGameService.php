@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
 class NbaGameService
 {
     public function __construct(
-        protected NbaStatsService $nbaStatsService,
+        protected NbaExternalService $NbaExternalService,
         protected NbaGameRepository $nbaGameRepository,
     ){
     }
@@ -28,13 +28,13 @@ class NbaGameService
         $period = CarbonPeriod::create(Carbon::parse($data['from']), Carbon::parse($data['to']));
 
         foreach ($period as $date) {
-            $this->nbaStatsService->importGamesByDate($date);
+            $this->NbaExternalService->importGamesByDate($date);
         }
     }
 
     public function getLineups(array $data = []): Collection
     {
-        $lineups = $this->nbaStatsService->getTodayLineups();
+        $lineups = $this->NbaExternalService->getTodayLineups();
 
         $games = collect($lineups['games'] ?? []);
 

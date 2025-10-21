@@ -6,13 +6,13 @@ use App\Enums\Games\NbaGameStatus;
 use App\Models\NbaGame;
 use App\Models\NbaGameData;
 use App\Models\NbaPlayer;
-use App\Models\NbaTeamScore;
+use App\Models\NbaTeamStat;
 use App\Models\NbaTeam;
 use App\Repositories\NbaGameDataRepository;
 use App\Repositories\NbaGameRepository;
 use App\Repositories\NbaPlayerRepository;
-use App\Repositories\NbaPlayerScoreRepository;
-use App\Repositories\NbaTeamScoreRepository;
+use App\Repositories\NbaPlayerStatRepository;
+use App\Repositories\NbaTeamStatRepository;
 use App\Repositories\NbaTeamRepository;
 use Carbon\Carbon;
 use Exception;
@@ -25,8 +25,8 @@ class SportsnetService
 
     public function __construct(
         protected NbaGameRepository $nbaGameRepository,
-        protected NbaTeamScoreRepository $nbaTeamScoreRepository,
-        protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
+        protected NbaTeamStatRepository $nbaTeamStatRepository,
+        protected NbaPlayerStatRepository $nbaPlayerStatRepository,
         protected NbaGameDataRepository $nbaGameDataRepository,
         protected NbaTeamRepository $nbaTeamRepository,
         protected NbaPlayerRepository $nbaPlayerRepository,
@@ -100,9 +100,9 @@ class SportsnetService
                 return $nbaGame;
             }
 
-            $this->createNbaTeamScore($gameData, $nbaGame, $awayTeam);
+            $this->createNbaTeamStat($gameData, $nbaGame, $awayTeam);
 
-            $this->createNbaTeamScore($gameData, $nbaGame, $homeTeam);
+            $this->createNbaTeamStat($gameData, $nbaGame, $homeTeam);
 
             $this->nbaGameRepository->updateStatus($nbaGame, NbaGameStatus::FINAL);
             
@@ -122,7 +122,7 @@ class SportsnetService
         return array_merge($starters, $teamData['bench']);
     }
 
-    public function createNbaTeamScore(array $gameData, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamScore
+    public function createNbaTeamStat(array $gameData, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamStat
     {
         $teamKey = $nbaTeam->id === $nbaGame->home_team_id ? 'home_team' : 'visiting_team';
 
@@ -132,9 +132,9 @@ class SportsnetService
 
         $scoreData = $gameData[$teamKey]['boxscore_totals'];
 
-        $this->createManyNbaPlayerScore($this->getNbaGamePlayerList($gameData[$teamKey]), $nbaGame, $nbaTeam);
+        $this->createManyNbaPlayerStat($this->getNbaGamePlayerList($gameData[$teamKey]), $nbaGame, $nbaTeam);
 
-        return $this->nbaTeamScoreRepository->create([
+        return $this->nbaTeamStatRepository->create([
             'points' => $scoreData['points'],
             'first_half_points' => $quarters[0][$quarterKey] + $quarters[1][$quarterKey],
             'second_half_points' => $quarters[2][$quarterKey] + $quarters[3][$quarterKey],
@@ -157,7 +157,7 @@ class SportsnetService
         ], $nbaGame, $nbaTeam);
     }
 
-    public function createManyNbaPlayerScore(array $playerScores, NbaGame $nbaGame, NbaTeam $nbaTeam): void
+    public function createManyNbaPlayerStat(array $playerScores, NbaGame $nbaGame, NbaTeam $nbaTeam): void
     {
         $playersSportnetIds = array_map(fn($player) => $player['id'], $playerScores);
 
@@ -179,7 +179,7 @@ class SportsnetService
                 $this->nbaPlayerRepository->updateTeam($player, $nbaTeam);
             }
 
-            $this->nbaPlayerScoreRepository->create([
+            $this->nbaPlayerStatRepository->create([
                 'is_starter' => $playerScore['is_starter'] ?? false,
                 'mins' => $playerScore['mins'],
                 'points' => $playerScore['points'],

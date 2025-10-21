@@ -9,7 +9,6 @@ use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Models\NhlTeam;
 use App\Services\NbaExternalService;
-use App\Services\NbaStatsService;
 use App\Services\NflExternalService;
 use App\Services\NflMarketService;
 use App\Services\NhlExternalService;
@@ -24,7 +23,7 @@ class TestController extends Controller
 
     public function __invoke()
     {
-        $repo = resolve(NbaStatsService::class);
+        $repo = resolve(NbaExternalService::class);
 
         $games = $repo->getGameByid("0022401128");
         

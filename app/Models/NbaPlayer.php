@@ -25,26 +25,41 @@ class NbaPlayer extends Model
         return $this->belongsTo(NbaTeam::class);
     }
 
+    public function stats(): HasMany
+    {
+        return $this->hasMany(NbaPlayerStat::class, 'player_id');
+    }
+
     public function scores(): HasMany
     {
-        return $this->hasMany(NbaPlayerScore::class, 'player_id');
+        return $this->stats();
+    }
+
+    public function awayStats(): HasMany
+    {
+        return $this->stats()
+            ->whereHas('game', fn($query) => $query->whereRaw('nba_games.away_team_id = nba_player_stats.team_id'));
     }
 
     public function awayScores(): HasMany
     {
-        return $this->scores()
-            ->whereHas('game', fn($query) => $query->whereRaw('nba_games.away_team_id = nba_player_scores.team_id'));
+        return $this->awayStats();
+    }
+
+    public function homeStats(): HasMany
+    {
+        return $this->stats()
+            ->whereHas('game', fn($query) => $query->whereRaw('nba_games.home_team_id = nba_player_stats.team_id'));
     }
 
     public function homeScores(): HasMany
     {
-        return $this->scores()
-            ->whereHas('game', fn($query) => $query->whereRaw('nba_games.home_team_id = nba_player_scores.team_id'));
+        return $this->homeStats();
     }
     
     public function againstRivalScores(BasketballTeam $rivalTeam): HasMany
     {
-        return $this->scores()->whereHas('game', function ($query) use ($rivalTeam) {
+        return $this->stats()->whereHas('game', function ($query) use ($rivalTeam) {
             $query->where('home_team_id', $rivalTeam->id)->orWhere('away_team_id', $rivalTeam->id);
         });
     }

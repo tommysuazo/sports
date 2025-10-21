@@ -6,7 +6,7 @@ use App\Models\NbaGame;
 use App\Models\NbaPlayer;
 use App\Models\NbaTeam;
 use App\Services\DigitalSportsTechService;
-use App\Services\NbaStatsService;
+use App\Services\NbaExternalService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -21,7 +21,7 @@ class SyncNbaRosters extends Command
     protected $description = 'Importa los rosters de todos los equipos de la NBA.';
 
     public function __construct(
-        protected NbaStatsService $nbaStatsService,
+        protected NbaExternalService $NbaExternalService,
         protected DigitalSportsTechService $digitalSportsTechService
     ) {
         parent::__construct();
@@ -33,7 +33,7 @@ class SyncNbaRosters extends Command
 
         NbaPlayer::where('id', '!=', 0)->update(['team_id' => null]);
 
-        foreach (NbaStatsService::getPlayers() as $playerData) {
+        foreach (NbaExternalService::getPlayers() as $playerData) {
             NbaPlayer::updateOrCreate([
                 'external_id' => $playerData['external_id'],
             ], [

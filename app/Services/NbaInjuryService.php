@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 class NbaInjuryService
 {
     public function __construct(
-        protected NbaStatsService $nbaStatsService,
+        protected NbaExternalService $NbaExternalService,
     ) {
     }
 
@@ -19,7 +19,7 @@ class NbaInjuryService
      */
     public function syncTodayInjuries(): array
     {
-        $lineups = $this->nbaStatsService->getTodayLineups();
+        $lineups = $this->NbaExternalService->getTodayLineups();
         $gamesData = data_get($lineups, 'games', []);
 
         $processedGames = 0;

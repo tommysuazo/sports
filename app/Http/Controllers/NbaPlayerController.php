@@ -3,12 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\NbaPlayer;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class NbaPlayerController extends Controller
 {
+    public function getStats(NbaPlayer $player)
+    {
+        $cacheKey = sprintf('nba-player-stats:%s', $player->getKey());
+
+        return Cache::tags(['nba-player-stats'])->rememberForever($cacheKey, function () use ($player) {
+            return $player->load([
+                'stats' => fn ($query) => $query
+                    ->with(['game' => fn ($gameQuery) => $gameQuery->select(
+                        'id',
+                        'external_id',
+                        'start_at',
+                        'home_team_id',
+                        'away_team_id',
+                    )])
+                    ->orderByDesc('nba_player_stats.id'),
+            ]);
+        });
+    }
+
     public function getScores(NbaPlayer $player)
     {
-        return $player->load('scores.games');
+        return $this->getStats($player);
     }
 }

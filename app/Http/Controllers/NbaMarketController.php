@@ -25,9 +25,17 @@ class NbaMarketController extends Controller
         // return NbaGameMatchupResource::collection($this->nbaMarketService->getMatchups());
     }
 
-    public function sync()
+    public function sync(Request $request)
     {
-        return $this->nbaMarketService->sync();
+        $marketId = $request->input('market_id');
+
+        $this->nbaMarketService->syncMarkets($marketId);
+
+        return response()->json([
+            'status' => 'ok',
+            'message' => 'Sincronización de mercados NBA completada',
+            'market_id' => $marketId,
+        ]);
     }
 
     public function syncPlayers()

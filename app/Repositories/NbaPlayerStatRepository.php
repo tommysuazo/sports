@@ -4,18 +4,18 @@ namespace App\Repositories;
 
 use App\Models\NbaGame;
 use App\Models\NbaPlayer;
-use App\Models\NbaPlayerScore;
+use App\Models\NbaPlayerStat;
 use App\Models\NbaTeam;
 
-class NbaPlayerScoreRepository
+class NbaPlayerStatRepository
 {
     public function list(array $filters) {}
 
     public function show(NbaGame $nbaGame) {}
 
-    public function create(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam, NbaPlayer $nbaPlayer): NbaPlayerScore
+    public function create(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam, NbaPlayer $nbaPlayer): NbaPlayerStat
     {
-        return NbaPlayerScore::create([
+        return NbaPlayerStat::create([
             'game_id' => $nbaGame->id,
             'team_id' => $nbaTeam->id,
             'player_id' => $nbaPlayer->id,

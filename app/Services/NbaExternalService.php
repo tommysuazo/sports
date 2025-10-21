@@ -2,318 +2,281 @@
 
 namespace App\Services;
 
-use App\Enums\Games\NbaGameStatus;
-use App\Enums\Leagues\BasketballLeagueExternalEnum;
+use App\Enums\NBA\NbaExternalGameStatusEnum;
+use App\Exceptions\KnownException;
 use App\Models\NbaGame;
 use App\Models\NbaPlayer;
 use App\Models\NbaTeam;
-use App\Models\NbaTeamScore;
+use App\Models\NbaTeamStat;
 use App\Repositories\NbaGameRepository;
 use App\Repositories\NbaPlayerRepository;
-use App\Repositories\NbaPlayerScoreRepository;
+use App\Repositories\NbaPlayerStatRepository;
 use App\Repositories\NbaTeamRepository;
-use App\Repositories\NbaTeamScoreRepository;
+use App\Repositories\NbaTeamStatRepository;
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use Exception;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class NbaExternalService
 {
-    // const HEADERS = [
-    //     "ocp-apim-subscription-key" => "747fa6900c6c4e89a58b81b72f36eb96",
-    //     "Accept" => " */*",
-    //     "Accept-Encoding" => " gzip, deflate, br, zstd",
-    //     "Accept-Language" => " es-ES,es;q=0.9",
-    //     "Cache-Control" => " no-cache",
-    //     "Connection" => " keep-alive",
-    //     "Host" => " stats.nba.com",
-    //     "Origin" => " https://www.nba.com",
-    //     "Pragma" => " no-cache",
-    //     "Referer" => " https://www.nba.com/",
-    //     "Sec-Fetch-Dest" => " empty",
-    //     "Sec-Fetch-Mode" => " cors",
-    //     "Sec-Fetch-Site" => " same-site",
-    //     "User-Agent" => " Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    //     "sec-ch-ua"=> "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\"",
-    //     "sec-ch-ua-mobile" => " ?0",
-    //     "sec-ch-ua-platform" => "Windows",
-    // ];
-    
-    // const BASE_URL = 'https://stats.nba.com';
+    const BASE_URL = 'https://stats.nba.com';
 
-    // protected string $league = 'nba';
+    public function __construct(
+        protected NbaGameRepository $nbaGameRepository,
+        protected NbaTeamRepository $nbaTeamRepository,
+        protected NbaTeamStatRepository $nbaTeamStatRepository,
+        protected NbaPlayerStatService $nbaPlayerStatService,
+        protected NbaPlayerRepository $nbaPlayerRepository,
+        protected NbaPlayerStatRepository $nbaPlayerStatRepository,
+    ) {
+    }
 
-    // public function __construct(
-    //     protected NbaGameRepository $nbaGameRepository,
-    //     protected NbaTeamRepository $nbaTeamRepository,
-    //     protected NbaTeamScoreRepository $nbaTeamScoreRepository,
-    //     protected NbaPlayerScoreService $nbaPlayerScoreService,
-    //     protected NbaPlayerRepository $nbaPlayerRepository,
-    //     protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
-    // ) {
-    // }
+    public static function getPlayers()
+    {   
+        $request = Http::withHeaders(self::headers())
+            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2024-25');
 
-    // public function setLeague(string $league)
-    // {
-    //     $this->league = $league;
-    // }
+        if (!$request->successful()) {
+            throw new KnownException("Fallo en el retorno de jugadores de Nba con la clase " . __CLASS__);
+        }
 
-    // public function getExternalLeagueId()
-    // {
-    //     return match ($this->league) {
-    //         'wnba' => '10',
-    //         default => '00',
-    //     };
-    // }
+        $players = $request->json('resultSets.0.rowSet');
 
-    // public static function getAllPlayers()
-    // {   
-    //     return Http::withHeaders(self::HEADERS)
-    //     ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2024-25');
-    //         ->json('resultSets.0.rowSet');
-    // }
+        return array_map(
+            fn($player) => [
+                'external_id' => $player[0],
+                'first_name' => $player[2],
+                'last_name' => $player[1],
+                'team_external_id' => $player[4]
+            ],
+        $players);
+    }
 
-    // public static function getWnbaPlayersData()
-    // {   
-    //     return Http::withHeaders(self::HEADERS)
-    //         ->get(self::BASE_URL . '/stats/playerindex?LeagueID=10&Season=2025')
-    //         ->json('resultSets.0.rowSet');
-    // }
+    public static function getGamesByDate(Carbon $date)
+    {
+        $request = Http::withHeaders(self::headers())
+            ->get(self::BASE_URL . '/stats/scoreboardv3?DayOffset=0&LeagueID=00&GameDate=' . $date->toDateString());
 
-    // public function getGameDay(Carbon $date)
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(
-    //             self::BASE_URL . '/stats/scoreboardv3?DayOffset=0&LeagueID=' . $this->getExternalLeagueId() .
-    //             '&GameDate=' . $date->toDateString()
-    //         );
-
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get " . strtoupper($this->league) . " games from " . $date->toDateString(), 503);
-    //     }
+        if (!$request->successful()) {
+            throw new KnownException("Fallo al intentar conseguir los juegos de NBA del dia " . $date->toDateString());
+        }
             
-    //     return $response;
-    // }
+        return $request->json('scoreboard.games');
+    }
 
-    // public function getGameByid(string $gameId)
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(
-    //             self::BASE_URL 
-    //             . '/stats/boxscoretraditionalv3?' 
-    //             . 'EndPeriod=1&EndRange=0&RangeType=0&StartPeriod=1&StartRange=0&GameID=' . $gameId
-    //         );
+    public function getGameByid(string $gameId)
+    {
+        $request = Http::withHeaders(self::headers())->get(self::BASE_URL . '/stats/boxscoretraditionalv3?GameID=' . $gameId);
 
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get " . strtoupper($this->league) . " game by id " . $gameId, 503);
-    //     }
+        if (!$request->successful()) {
+            throw new KnownException("Fallo al intentar obtener el juego con ID {$gameId}");
+        }
         
-    //     return $response;
-    // }
+        return $request;
+    }
 
-    // public static function getGameSummaryByid(string $gameId)
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(self::BASE_URL . "/stats/boxscoresummaryv2?GameID=" . $gameId);
-
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get NBA game summary by id " . $gameId, 503);
-    //     }
+    public static function getTodayLineups()
+    {
+        $request = Http::withHeaders(self::headers())
+            ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
         
-    //     return $response;
-    // }
+        if (!$request->successful()) {
+            throw new KnownException("Fallo al intentar obtener las alineaciones del dia de hoy");
+        }
 
-    // public static function getTodayLineups()
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
+        return $request->json();
+    }
+
+    public function importGamesByDate(Carbon $date): ?NbaGame
+    {   
+        Log::info("Importando juegos de NBA de la fecha " . $date->toDateString());
+
+        $games = $this->getGamesByDate($date);
+
+        $lastGameImported = null;
+
+        foreach ($games as $gameData) {
+            $lastGameImported = $this->createGame($gameData);
+        }
+
+        return $lastGameImported;
+    }
+
+    public function createGame(array $gameData): NbaGame
+    {
+        Log::info("Creando juego de NBA con ID externo " . $gameData['gameId']);
+
+        DB::beginTransaction();
+
         
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get NBA daily lineups", 503);
-    //     }
+        try {
+            $game = NbaGame::firstWhere('external_id', $gameData['gameId']);
+            $awayTeam = NbaTeam::firstWhere('external_id', $gameData['awayTeam']['teamId']);
+            $homeTeam = NbaTeam::firstWhere('external_id', $gameData['homeTeam']['teamId']);
 
-    //     return $response;
-    // }
+            if (!$awayTeam || !$homeTeam) {
+                throw new KnownException("No se pudieron localizar los equipos del juego {$gameData['gameId']}");
+            }
 
-    // public static function getTeamStats()
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(
-    //             self::BASE_URL . "/stats/leaguedashteamstats?Conference=&DateFrom=&DateTo=&Division=&GameScope=&GameSegment=&Height=&ISTRound=&LastNGames=0" .
-    //             "&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=" .
-    //             "&PlayerPosition=&PlusMinus=N&Rank=N&Season=2024-25&SeasonSegment=&SeasonType=Regular%20Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0" .
-    //             "&VsConference=&VsDivision="
-    //         );
-        
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get NBA team stats ", 503);
-    //     }
+            if (!$game) {
+                $game = NbaGame::create([
+                    'external_id' => $gameData['gameId'],
+                    'away_team_id' => $awayTeam->id,
+                    'home_team_id' => $homeTeam->id,
+                    'start_at' => $gameData['gameTimeUTC'],
+                    'is_completed' => false,
+                ]);
+            }
 
-    //     return $response;
-    // }
+            if (!$game->is_completed && $gameData['gameStatus'] === NbaExternalGameStatusEnum::COMPLETED->value) {
+                Log::info("Away team: {$gameData['awayTeam']['teamTricode']} - Home team: {$gameData['homeTeam']['teamTricode']}");
     
-    // public static function getTeamOpponentStats()
-    // {
-    //     $response = Http::withHeaders(self::HEADERS)
-    //         ->get(
-    //             self::BASE_URL . "/stats/leaguedashteamstats?Conference=&DateFrom=&DateTo=&Division=&GameScope=&GameSegment=&Height=&ISTRound=&LastNGames=0" .
-    //             "&LeagueID=00&Location=&MeasureType=Opponent&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=" .
-    //             "&PlayerPosition=&PlusMinus=N&Rank=N&Season=2024-25&SeasonSegment=&SeasonType=Regular%20Season&ShotClockRange=&StarterBench=&TeamID=0" .
-    //             "&TwoWay=0&VsConference=&VsDivision="
-    //         );
+                $data = $this->getGameByid($gameData['gameId']);
+    
+                $data = $data['boxScoreTraditional'];
+    
+                $awayTeamScore = $this->createNbaTeamStat(
+                    $data['awayTeam'] + ['quarters' => $gameData['awayTeam']['periods']], 
+                    $game, 
+                    $game->awayTeam
+                );
+
+                $homeTeamScore = $this->createNbaTeamStat(
+                    $data['homeTeam'] + ['quarters' => $gameData['homeTeam']['periods']],
+                    $game,
+                    $game->homeTeam
+                );
+    
+                $game->is_completed = true;
+    
+                $awayTeamWon = $awayTeamScore->points > $homeTeamScore->points;
+                $game->winner_team_id = $awayTeamWon ? $game->away_team_id : $game->home_team_id;
+                $game->save();
+    
+                $winnerTeam = $awayTeamWon ? $awayTeam : $homeTeam;
+                $loserTeam = $awayTeamWon ? $homeTeam : $awayTeam;
+
+                $this->updateTeamRecords($winnerTeam, $loserTeam);
+            }
+
+            DB::commit();
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
         
-    //     if (!$response->successful()) {
-    //         throw new Exception("Failed to get NBA team opponent stats ", 503);
-    //     }
+        return $game;
+    }
 
-    //     return $response;
-    // }
+    public function createNbaTeamStat(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamStat
+    {
+        $this->createManyNbaPlayerStat($data['players'], $nbaGame, $nbaTeam);
 
-    // public function importGamesByDate(Carbon $date)
-    // {   
-    //     Log::info("Importing " . strtoupper($this->league) . " games for date: " . $date->toDateString());
+        $statistics = $data['statistics'];
+        $quarters = collect($data['quarters']);
 
-    //     $games = $this->getGameDay($date)->json('scoreboard.games');
+        $firstQuarterPoints = data_get($quarters->firstWhere('period', 1), 'score', 0);
+        $secondQuarterPoints = data_get($quarters->firstWhere('period', 2), 'score', 0);
+        $thirdQuarterPoints = data_get($quarters->firstWhere('period', 3), 'score', 0);
+        $fourthQuarterPoints = data_get($quarters->firstWhere('period', 4), 'score', 0);
+        $overtimes = $quarters->where('periodType', 'OVERTIME');
 
-    //     foreach ($games as $game) {
-    //         $this->createGame($game['gameId'], $game['awayTeam']['periods'], $game['homeTeam']['periods']);
-    //     }
-    // }
+        return $this->nbaTeamStatRepository->create([
+            'points' => $statistics['points'],
+            'is_away' => $nbaGame->away_team_id === $nbaTeam->id,
+            'first_half_points' => $firstQuarterPoints + $secondQuarterPoints,
+            'second_half_points' => $thirdQuarterPoints + $fourthQuarterPoints + $overtimes->sum('score'),
+            'first_quarter_points' => $firstQuarterPoints,
+            'second_quarter_points' => $secondQuarterPoints,
+            'third_quarter_points' => $thirdQuarterPoints,
+            'fourth_quarter_points' => $fourthQuarterPoints,
+            'overtimes' => $overtimes->count(),
+            'overtime_points' => $overtimes->sum('score'),
+            'rebounds' => $statistics['reboundsTotal'],
+            'assists' => $statistics['assists'],
+            'steals' => $statistics['steals'],
+            'blocks' => $statistics['blocks'],
+            'turnovers' => $statistics['turnovers'],
+            'fouls' => $statistics['foulsPersonal'],
+            'field_goals_made' => $statistics['fieldGoalsMade'],
+            'field_goals_attempted' => $statistics['fieldGoalsAttempted'],
+            'three_pointers_made' => $statistics['threePointersMade'],
+            'three_pointers_attempted' => $statistics['threePointersAttempted'],
+            'free_throws_made' => $statistics['freeThrowsMade'],
+            'free_throws_attempted' => $statistics['freeThrowsAttempted'],
+        ], $nbaGame, $nbaTeam);
+    }
 
-    // public function createGame(string $gameId, array $awayQuarters, array $homeQuarters): null|NbaGame
-    // {
-    //     Log::info("Creating " . strtoupper($this->league) . " game with ID: " . $gameId);
+    public function createManyNbaPlayerStat(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): void
+    {
+        $playersExternalIds = array_map(fn($player) => $player['personId'], $data);
 
-    //     if ($this->nbaGameRepository->findByExternalId($gameId)) {
-    //         return null;
-    //     }
+        $currentPlayers = NbaPlayer::whereIn('external_id', $playersExternalIds)->get();
 
-    //     $data = $this->getGameByid($gameId);
+        $starterCount = 0;
 
-    //     if (!$data['boxScoreTraditional']['homeTeam']['statistics']) {
-    //         return null;
-    //     }
+        foreach ($data as $playerScore) {
+            $player = $currentPlayers->firstWhere('external_id', $playerScore['personId']);
 
-    //     DB::beginTransaction();
+            if (!$player) {
+                $player = $this->nbaPlayerRepository->create([
+                    'external_id' => $playerScore["personId"],
+                    'first_name' => $playerScore["firstName"],
+                    'last_name' => $playerScore["familyName"],
+                ], $nbaTeam);
+            }
 
-    //     try {
-    //         $startedAt = Carbon::parse($data['meta']['time']);
+            $statistics = $playerScore['statistics'];
 
-    //         $data = $data['boxScoreTraditional'];
+            if (!$statistics || empty($statistics['minutes']) || in_array($statistics['minutes'], ['0:00', '00:00'])) {
+                Log::warning("No statistics found for player: {$player->external_id} in game: {$nbaGame->external_id}");
+                continue;
+            }
 
-    //         Log::info("away team: " . $data['awayTeamId'] . " - home team: " . $data['homeTeamId']);
+        $this->nbaPlayerStatRepository->create([
+                'is_starter' => $starterCount++ < 5,
+                'is_away' => $nbaGame->away_team_id === $nbaTeam->id,
+                'mins' => $statistics['minutes'],
+                'points' => $statistics['points'],
+                'rebounds' => $statistics['reboundsTotal'],
+                'assists' => $statistics['assists'],
+                'steals' => $statistics['steals'],
+                'blocks' => $statistics['blocks'],
+                'turnovers' => $statistics['turnovers'],
+                'fouls' => $statistics['foulsPersonal'],
+                'field_goals_made' => $statistics['fieldGoalsMade'],
+                'field_goals_attempted' => $statistics['fieldGoalsAttempted'],
+                'three_pointers_made' => $statistics['threePointersMade'],
+                'three_pointers_attempted' => $statistics['threePointersAttempted'],
+                'free_throws_made' => $statistics['freeThrowsMade'],
+                'free_throws_attempted' => $statistics['freeThrowsAttempted'],
+            ], $nbaGame, $nbaTeam, $player);
+        }
+    }
 
-    //         $awayTeam = NbaTeam::firstWhere('external_id', $data['awayTeamId']);
-    //         $homeTeam = NbaTeam::firstWhere('external_id', $data['homeTeamId']);
+    protected function updateTeamRecords(NbaTeam $winner, NbaTeam $loser): void
+    {
+        $this->nbaTeamRepository->syncRecordWithGames($winner);
+        $this->nbaTeamRepository->syncRecordWithGames($loser);
+    }
 
-    //         $game = $this->nbaGameRepository->create([
-    //             'external_id' => $data['gameId'],
-    //             'started_at' => $startedAt->toDateTimeString(),
-    //         ], $awayTeam, $homeTeam);
-
-    //         $this->createNbaTeamScore($data['awayTeam'] + ['quarters' => $awayQuarters], $game, $awayTeam);
-
-    //         $this->createNbaTeamScore($data['homeTeam'] + ['quarters' => $homeQuarters], $game, $homeTeam);
-
-    //         DB::commit();
-
-    //     } catch (Exception $e) {
-    //         DB::rollBack();
-    //         throw $e;
-    //     }
-        
-    //     return $game;
-    // }
-
-    // public function createNbaTeamScore(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): NbaTeamScore
-    // {
-    //     $this->createManyNbaPlayerScore($data['players'], $nbaGame, $nbaTeam);
-
-    //     $statistics = $data['statistics'];
-    //     $quarters = collect($data['quarters']);
-
-    //     $firstQuarterPoints = $quarters->firstWhere('period', 1)['score'];
-    //     $secondQuarterPoints = $quarters->firstWhere('period', 2)['score'];
-    //     $thirdQuarterPoints = $quarters->firstWhere('period', 3)['score'];
-    //     $fourthQuarterPoints = $quarters->firstWhere('period', 4)['score'];
-    //     $overtimes = $quarters->where('periodType', 'OVERTIME');
-
-    //     return $this->nbaTeamScoreRepository->create([
-    //         'points' => $statistics['points'],
-    //         'first_half_points' => $firstQuarterPoints + $secondQuarterPoints,
-    //         'second_half_points' => $thirdQuarterPoints + $fourthQuarterPoints + $overtimes->sum('scores'),
-    //         'first_quarter_points' => $firstQuarterPoints,
-    //         'second_quarter_points' => $secondQuarterPoints,
-    //         'third_quarter_points' => $thirdQuarterPoints,
-    //         'fourth_quarter_points' => $fourthQuarterPoints,
-    //         'overtimes' => $overtimes->count(),
-    //         'overtime_points' => $overtimes->sum('score'),
-    //         'rebounds' => $statistics['reboundsTotal'],
-    //         'assists' => $statistics['assists'],
-    //         'steals' => $statistics['steals'],
-    //         'blocks' => $statistics['blocks'],
-    //         'turnovers' => $statistics['turnovers'],
-    //         'fouls' => $statistics['foulsPersonal'],
-    //         'field_goals_made' => $statistics['fieldGoalsMade'],
-    //         'field_goals_attempted' => $statistics['fieldGoalsAttempted'],
-    //         'three_pointers_made' => $statistics['threePointersMade'],
-    //         'three_pointers_attempted' => $statistics['threePointersAttempted'],
-    //         'free_throws_made' => $statistics['freeThrowsMade'],
-    //         'free_throws_attempted' => $statistics['freeThrowsAttempted'],
-    //     ], $nbaGame, $nbaTeam);
-    // }
-
-    // public function createManyNbaPlayerScore(array $data, NbaGame $nbaGame, NbaTeam $nbaTeam): void
-    // {
-    //     $playersExternalIds = array_map(fn($player) => $player['personId'], $data);
-
-    //     $currentPlayers = NbaPlayer::whereIn('external_id', $playersExternalIds)->get();
-
-    //     $starterCount = 0;
-
-    //     foreach ($data as $playerScore) {
-    //         $player = $currentPlayers->firstWhere('external_id', $playerScore['personId']);
-
-    //         if (!$player) {
-    //             $player = $this->nbaPlayerRepository->create([
-    //                 'external_id' => $playerScore["personId"],
-    //                 'first_name' => $playerScore["firstName"],
-    //                 'last_name' => $playerScore["familyName"],
-    //             ], $nbaTeam);
-    //         }
-
-    //         if ($player->team_id != $nbaTeam->id) {
-    //             $this->nbaPlayerRepository->updateTeam($player, $nbaTeam);
-    //         }
-
-    //         $statistics = $playerScore['statistics'];
-
-    //         if (!$statistics || empty($statistics['minutes']) || in_array($statistics['minutes'], ['0:00', '00:00'])) {
-    //             Log::warning("No statistics found for player: {$player->external_id} in game: {$nbaGame->external_id}");
-    //             continue;
-    //         }
-
-    //         $this->nbaPlayerScoreRepository->create([
-    //             'is_starter' => $starterCount++ < 5,
-    //             'mins' => $statistics['minutes'],
-    //             'points' => $statistics['points'],
-    //             'rebounds' => $statistics['reboundsTotal'],
-    //             'assists' => $statistics['assists'],
-    //             'steals' => $statistics['steals'],
-    //             'blocks' => $statistics['blocks'],
-    //             'turnovers' => $statistics['turnovers'],
-    //             'fouls' => $statistics['foulsPersonal'],
-    //             'field_goals_made' => $statistics['fieldGoalsMade'],
-    //             'field_goals_attempted' => $statistics['fieldGoalsAttempted'],
-    //             'three_pointers_made' => $statistics['threePointersMade'],
-    //             'three_pointers_attempted' => $statistics['threePointersAttempted'],
-    //             'free_throws_made' => $statistics['freeThrowsMade'],
-    //             'free_throws_attempted' => $statistics['freeThrowsAttempted'],
-    //         ], $nbaGame, $nbaTeam, $player);
-    //     }
-    // }
+    protected static function headers(): array
+    {
+        return [
+            "Accept-Encoding" => " gzip, deflate, br, zstd",
+            "Cache-Control" => " no-cache",
+            "Connection" => " keep-alive",
+            "Origin" => " https://www.nba.com",
+            "Pragma" => " no-cache",
+            "Referer" => " https://www.nba.com/",
+            "Sec-Fetch-Mode" => " cors",
+            "User-Agent" => " Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            "sec-ch-ua"=> "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\"",
+            "sec-ch-ua-mobile" => " ?0",
+            "sec-ch-ua-platform" => "Windows",
+        ];
+    }
 }

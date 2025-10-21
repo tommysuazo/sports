@@ -37,8 +37,18 @@ class NbaTeam extends BasketballTeam
             ->where('status', NbaGameStatus::FINAL->value);
     }
 
+    public function stats(): HasMany
+    {
+        return $this->hasMany(NbaTeamStat::class, 'team_id', 'id');
+    }
+
     public function scores(): HasMany
     {
-        return $this->hasMany(NbaTeamScore::class, 'team_id', 'id');
+        return $this->stats();
+    }
+
+    public function markets(): HasMany
+    {
+        return $this->hasMany(NbaTeamMarket::class, 'team_id');
     }
 }

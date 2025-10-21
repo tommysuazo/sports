@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Services\DigitalSportsTechService;
+use App\Services\NbaMarketService;
 use Illuminate\Database\Seeder;
 
 class NbaMarketSeeder extends Seeder
 {
     public function __construct(
-        protected DigitalSportsTechService $digitalSportsTechService,
+        protected NbaMarketService $nbaMarketService,
     ) {
     }
 
@@ -17,6 +17,6 @@ class NbaMarketSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->digitalSportsTechService->syncNbaMarkets();
+        $this->nbaMarketService->syncMarkets();
     }
 }

@@ -3,15 +3,15 @@
 namespace App\Services;
 
 use App\Models\NbaGame;
-use App\Repositories\NbaPlayerScoreRepository;
+use App\Repositories\NbaPlayerStatRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Http;
 
-class NbaPlayerScoreService
+class NbaPlayerStatService
 {
     public function __construct(
-        protected NbaPlayerScoreRepository $nbaPlayerScoreRepository,
+        protected NbaPlayerStatRepository $nbaPlayerStatRepository,
         protected SportsnetService $sportsnetService,
     ){
     }
@@ -25,5 +25,4 @@ class NbaPlayerScoreService
     {
         
     }
-
 }

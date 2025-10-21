@@ -18,26 +18,26 @@ class NbaTeamRepository extends MultiLeagueRepository
     {
         $scoreType = $withHomeScores ? 'homeScores' : 'awayScores';
 
-        return NbaTeam::join('nba_team_scores', 'nba_teams.id', 'nba_team_scores.team_id')
+        return NbaTeam::join('nba_team_stats', 'nba_teams.id', 'nba_team_stats.team_id')
             ->with([
                 'players' => function ($queryPlayer) use ($scoreType) {
                     $queryPlayer->with([
-                        'scores' => fn($queryScore) => $queryScore->orderByDesc('nba_player_scores.id')->limit(5),
-                        $scoreType => fn($queryScore) => $queryScore->orderByDesc('nba_player_scores.id')->limit(5),
+                        'stats' => fn($queryStat) => $queryStat->orderByDesc('nba_player_stats.id')->limit(5),
+                        $scoreType => fn($queryStat) => $queryStat->orderByDesc('nba_player_stats.id')->limit(5),
                     ]);
                 },
             ])
         ->selectRaw("
             nba_teams.*,
-            ROUND(AVG(nba_team_scores.points), 1) as points_avg,
-            ROUND(AVG(nba_team_scores.first_half_points), 1) as first_half_points_avg,
-            ROUND(AVG(nba_team_scores.second_half_points), 1) as second_half_points_avg,
-            ROUND(AVG(nba_team_scores.first_quarter_points), 1) as first_quarter_points_avg,
-            ROUND(AVG(nba_team_scores.second_quarter_points), 1) as second_quarter_points_avg,
-            ROUND(AVG(nba_team_scores.third_quarter_points), 1) as third_quarter_points_avg,
-            ROUND(AVG(nba_team_scores.fourth_quarter_points), 1) as fourth_quarter_points_avg,
-            ROUND(AVG(nba_team_scores.assists), 1) as assists_avg,
-            ROUND(AVG(nba_team_scores.rebounds), 1) as rebounds_avg
+            ROUND(AVG(nba_team_stats.points), 1) as points_avg,
+            ROUND(AVG(nba_team_stats.first_half_points), 1) as first_half_points_avg,
+            ROUND(AVG(nba_team_stats.second_half_points), 1) as second_half_points_avg,
+            ROUND(AVG(nba_team_stats.first_quarter_points), 1) as first_quarter_points_avg,
+            ROUND(AVG(nba_team_stats.second_quarter_points), 1) as second_quarter_points_avg,
+            ROUND(AVG(nba_team_stats.third_quarter_points), 1) as third_quarter_points_avg,
+            ROUND(AVG(nba_team_stats.fourth_quarter_points), 1) as fourth_quarter_points_avg,
+            ROUND(AVG(nba_team_stats.assists), 1) as assists_avg,
+            ROUND(AVG(nba_team_stats.rebounds), 1) as rebounds_avg
         ")
         ->whereIn('external_id', $teamIds)
         ->groupBy('nba_teams.id')
@@ -92,11 +92,11 @@ class NbaTeamRepository extends MultiLeagueRepository
     public function syncRecordWithGames(NbaTeam $team): void
     {
         $record = NbaGame::query()
-            ->join('nba_team_scores as team_score', function ($join) use ($team) {
+            ->join('nba_team_stats as team_score', function ($join) use ($team) {
                 $join->on('team_score.game_id', '=', 'nba_games.id')
                     ->where('team_score.team_id', '=', $team->id);
             })
-            ->join('nba_team_scores as opponent_score', function ($join) {
+            ->join('nba_team_stats as opponent_score', function ($join) {
                 $join->on('opponent_score.game_id', '=', 'nba_games.id')
                     ->whereColumn('opponent_score.team_id', '!=', 'team_score.team_id');
             })
