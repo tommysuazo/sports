@@ -192,7 +192,7 @@ class NbaSeeder extends Seeder
         }
 
         NbaPlayer::insert($players);
-
+        
         $this->digitalSportsTechService->syncNbaPlayerMarketIds();
     }
 }

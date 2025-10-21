@@ -89,15 +89,19 @@ class NbaStatsService
         return $request->json();
     }
 
-    public function importGamesByDate(Carbon $date)
+    public function importGamesByDate(Carbon $date): ?NbaGame
     {   
         Log::info("Importando juegos de NBA de la fecha " . $date->toDateString());
 
         $games = $this->getGamesByDate($date);
 
+        $lastGameImported = null;
+
         foreach ($games as $gameData) {
-            $this->createGame($gameData);
+            $lastGameImported = $this->createGame($gameData);
         }
+
+        return $lastGameImported;
     }
 
     public function createGame(array $gameData): NbaGame

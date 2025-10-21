@@ -11,13 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('nba_game_markets', function (Blueprint $table) {
+        Schema::create('nba_team_markets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('game_id')->constrained('nba_games');
-            $table->foreignId('favorite_team_id')->constrained('nba_teams');
-            $table->decimal('handicap', 5, 1);
+            $table->foreignId('team_id')->constrained('nba_teams');
             $table->decimal('points', 5, 1);
-            $table->decimal('first_half_handicap', 5, 1)->nullable();
             $table->decimal('first_half_points', 5, 1)->nullable();
             $table->decimal('first_quarter_points', 5, 1)->nullable();
             $table->decimal('second_quarter_points', 5, 1)->nullable();

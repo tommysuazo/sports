@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('nba_player_markets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('favorite_team_id')->constrained('nba_teams');
-            $table->unsignedTinyInteger('points')->nullable();
-            $table->unsignedTinyInteger('assists')->nullable();
-            $table->unsignedTinyInteger('rebounds')->nullable();
-            $table->unsignedTinyInteger('pt3')->nullable();
-            $table->unsignedTinyInteger('pra')->nullable();
+            $table->decimal('points', 5, 1)->nullable();
+            $table->decimal('assists', 5, 1)->nullable();
+            $table->decimal('rebounds', 5, 1)->nullable();
+            $table->decimal('pt3', 5, 1)->nullable();
+            $table->decimal('pra', 5, 1)->nullable();
             $table->timestamps();
         });
     }
