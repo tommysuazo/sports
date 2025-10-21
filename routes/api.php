@@ -50,6 +50,7 @@ Route::middleware(['api'])->group(function () {
             Route::get('/stats/averages', [NbaTeamController::class, 'getAverageStatsAll']);
             Route::get('/{team}/stats/averages', [NbaTeamController::class, 'getAverageStats']);
             Route::get('/{team}/stats', [NbaTeamController::class, 'getStats']);
+            Route::get('/stats/recent-performance', [NbaTeamController::class, 'getRecentPerformance']);
         });
     });
 

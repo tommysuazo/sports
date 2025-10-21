@@ -11,6 +11,7 @@ use App\Models\NbaTeam;
 use App\Models\NbaTeamMarket;
 use App\Repositories\NbaTeamRepository;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -42,79 +43,67 @@ class NbaMarketService
         'away team 1st half total points' => ['team' => 'away', 'field' => 'first_half_points'],
     ];
 
-    public function getMarkets()
+    public function getLiveMarkets($date = null): Collection
     {
-        return NbaGame::with([
-                'homeTeam',
-                'awayTeam',
-                'market',
-                'teamMarkets',
-                'playerMarkets',
-            ])
-            ->whereNotNull('market_id')
-            ->orderBy('start_at')
+        $tz = config('app.user_timezone', 'America/Santo_Domingo');
+
+        $localDay = $date
+            ? CarbonImmutable::parse($date, $tz)
+            : CarbonImmutable::now($tz);
+
+        // Ventana del día local -> UTC
+        $startUtc = $localDay->startOfDay()->setTimezone('UTC');
+        $endUtc   = $startUtc->addDay();
+
+        return NbaGame::with(['homeTeam', 'awayTeam', 'market', 'teamMarkets', 'playerMarkets'])
+            ->where('start_at', '>=', $startUtc)
+            ->where('start_at', '<',  $endUtc)
             ->get();
     }
 
-    public function getMatchups()
+    public function getMatchups($date = null): Collection
     {
-        $cacheKey = now()->toDateString();
+        $tz = config('app.user_timezone', 'America/Santo_Domingo');
 
-        $matchups = false; 
-        // $matchups = Cache::tags('matchups')->get($cacheKey);
+        $localDay = $date
+            ? CarbonImmutable::parse($date, $tz)
+            : CarbonImmutable::now($tz);
 
-        if ($matchups) {
-            return $matchups;
-        } else {
-            // $lineups = collect($this->nbaExternalService->getTodayLineups());
+        // Ventana del día local -> UTC
+        $startUtc = $localDay->startOfDay()->setTimezone('UTC');
+        $endUtc   = $startUtc->addDay();
 
-            // $games = $lineups->map(fn($game) => [
-            //     'homeTeamId' => $game->homeTeam->teamId,
-            //     'awayTeamId' => $game->awayTeam->teamId,
-            // ]);
+        // Pivote para separar “próximos” de “pasados”
+        // Si el día es hoy, usamos "ahora"; de lo contrario, tratamos todo como "próximo"
+        $pivotUtc = $localDay->isSameDay(CarbonImmutable::now($tz))
+            ? CarbonImmutable::now('UTC')
+            : $startUtc;
 
-            $games = collect([
-                [
-                    'awayTeamId' => 1611661324,
-                    'homeTeamId' => 1611661319,
-                ],
-                // [
-                //     'awayTeamId' => 1611661313,
-                //     'homeTeamId' => 1611661323,
-                // ],
-                // [
-                //     'awayTeamId' => 1611661331,
-                //     'homeTeamId' => 1611661329,
-                // ],
-                // [
-                //     'awayTeamId' => 1611661325,
-                //     'homeTeamId' => 1611661321,
-                // ],
-                // [
-                //     'awayTeamId' => 1611661320,
-                //     'homeTeamId' => 1611661328,
-                // ],
-            ]);
+        $playersWithStats = function ($playerQuery) {
+            $playerQuery
+                ->whereNotNull('market_id')
+                ->with(['stats' => function ($q) {
+                    $q->orderByDesc('nba_player_stats.game_id')->limit(5);
+                }]);
+        };
 
-            $awayTeamIds = $games->map(fn($game) => $game['awayTeamId'])->toArray();
-            $awayTeams = $this->nbaTeamRepository->getTeamsDataForMatchups($awayTeamIds, false);
-
-            $homeTeamIds = $games->map(fn($game) => $game['homeTeamId'])->toArray();
-            $homeTeams = $this->nbaTeamRepository->getTeamsDataForMatchups($homeTeamIds);
-
-            $matchups = $games->mapWithKeys(function ($game) use ($awayTeams, $homeTeams) {
-                $homeTeam = $homeTeams->firstWhere('external_id', $game['homeTeamId']);
-                
-                return [
-                    $homeTeam->market_id => [
-                        'away_team' => $awayTeams->firstWhere('external_id', $game['awayTeamId']),
-                        'home_team' => $homeTeam,
-                    ]
-                ];
-            });
-        }
-
-        return $matchups;
+        return NbaGame::query()
+            ->with([
+                'awayTeam' => fn ($q) => $q->with(['players' => $playersWithStats]),
+                'homeTeam' => fn ($q) => $q->with(['players' => $playersWithStats]),
+            ])
+            ->where('start_at', '>=', $startUtc)
+            ->where('start_at', '<',  $endUtc)
+            ->orderByRaw(
+                // 1) Próximos primero (start_at >= pivot -> 0), luego pasados (1)
+                // 2) Entre próximos: ASC (más cercano primero)
+                // 3) Entre pasados: DESC (el más reciente primero)
+                "CASE WHEN start_at >= ? THEN 0 ELSE 1 END,
+                CASE WHEN start_at >= ? THEN start_at END ASC,
+                CASE WHEN start_at <  ? THEN start_at END DESC",
+                [$pivotUtc, $pivotUtc, $pivotUtc]
+            )
+            ->get();
     }
 
     public function syncMarkets(?string $marketId = null): void

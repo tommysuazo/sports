@@ -6,6 +6,7 @@ use App\Models\NbaGame;
 use App\Models\NbaTeam;
 use App\Models\NbaTeamStat;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
 class NbaTeamStatRepository
 {
@@ -71,6 +72,33 @@ class NbaTeamStatRepository
                 ],
             ];
         })->toArray();
+    }
+
+    public function getRecentStatsWithGameData(NbaTeam $team, int $limit = 7): Collection
+    {
+        return NbaTeamStat::query()
+            ->with([
+                'game' => static fn ($query) => $query->select(
+                    'id',
+                    'home_team_id',
+                    'away_team_id',
+                    'winner_team_id',
+                    'start_at',
+                    'is_completed'
+                ),
+                'game.market:id,game_id,favorite_team_id,handicap,points',
+                'game.homeStat:id,game_id,team_id,points',
+                'game.awayStat:id,game_id,team_id,points',
+            ])
+            ->where('team_id', $team->id)
+            ->whereHas('game', static fn ($query) => $query->where('is_completed', true))
+            ->orderByDesc(
+                NbaGame::select('start_at')
+                    ->whereColumn('nba_games.id', 'nba_team_stats.game_id')
+                    ->limit(1)
+            )
+            ->limit($limit)
+            ->get();
     }
 
     protected function getAveragesForTeam(NbaTeam $team): array

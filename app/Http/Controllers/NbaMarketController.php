@@ -15,7 +15,7 @@ class NbaMarketController extends Controller
 
     public function index()
     {
-        return $this->nbaMarketService->getMarkets();
+        return $this->nbaMarketService->getLiveMarkets();
     }
 
     public function matchups()

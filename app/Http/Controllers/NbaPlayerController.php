@@ -13,15 +13,11 @@ class NbaPlayerController extends Controller
 
         return Cache::tags(['nba-player-stats'])->rememberForever($cacheKey, function () use ($player) {
             return $player->load([
-                'stats' => fn ($query) => $query
-                    ->with(['game' => fn ($gameQuery) => $gameQuery->select(
-                        'id',
-                        'external_id',
-                        'start_at',
-                        'home_team_id',
-                        'away_team_id',
-                    )])
-                    ->orderByDesc('nba_player_stats.id'),
+                'stats' => function($query) {
+                    $query->with([
+                        'game' => fn($gameQuery) => $gameQuery->with(['awayTeam', 'homeTeam', 'awayStat', 'homeStat'])
+                    ]);
+                }
             ]);
         });
     }
