@@ -5,10 +5,10 @@ namespace App\Services;
 use App\Models\NbaGame;
 use App\Models\NbaInjury;
 use App\Models\NbaPlayer;
+use App\Models\NbaTeam;
 use App\Repositories\NbaGameRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
-use Illuminate\Support\Collection;
 
 class NbaGameService
 {
@@ -18,9 +18,30 @@ class NbaGameService
     ){
     }
 
-    public function list()
+    public function list(array $filters)
     {
-        return NbaGame::all();
+        $query = NbaGame::with([
+            'awayTeam' => fn ($qs) => $qs->select([
+                'nba_teams.id',
+                'nba_teams.short_name',
+            ]),
+            'homeTeam' => fn ($qs) => $qs->select([
+                'nba_teams.id',
+                'nba_teams.short_name',
+            ]),
+            'market',
+            'stats'
+        ])
+            ->where('is_completed', true);
+
+        if (!empty($filters['team'])) {
+            $query->where(fn ($queryTeam) => $queryTeam
+                ->where('away_team_id', $filters['team'])
+                ->orWhere('home_team_id', $filters['team'])
+            );
+        }
+
+        return $query->orderByDesc('id')->paginate(10);
     }
 
     public function importGamesByDateRange(array $data)
@@ -32,50 +53,148 @@ class NbaGameService
         }
     }
 
-    public function getLineups(array $data = []): Collection
+    public function getLineups(array $data = []): array
     {
         $lineups = $this->NbaExternalService->getTodayLineups();
 
-        $games = collect($lineups['games'] ?? []);
+        $gamesPayload = collect($lineups['games'] ?? []);
 
-        return $games->map(function (array $gamePayload) {
-            $game = $this->nbaGameRepository->findByExternalId($gamePayload['gameId']);
-
-            $inactivePlayers = collect($gamePayload['homeTeam']['players'] ?? [])
-                ->merge($gamePayload['awayTeam']['players'] ?? [])
-                ->filter(fn (array $playerPayload) => strcasecmp($playerPayload['rosterStatus'] ?? '', 'inactive') === 0);
-
-            if (!$game) {
-                return [
-                    'external_game_id' => $gamePayload['gameId'],
-                    'game' => null,
-                    'injuries' => collect(),
-                    'inactive_players' => $inactivePlayers->values(),
-                ];
-            }
-
-            $injuries = $inactivePlayers
-                ->map(function (array $playerPayload) use ($game) {
-                    $player = NbaPlayer::firstWhere('external_id', $playerPayload['personId']);
-
-                    if (!$player) {
-                        return null;
-                    }
-
-                    return NbaInjury::firstOrCreate([
-                        'game_id' => $game->id,
-                        'player_id' => $player->id,
-                    ]);
-                })
-                ->filter()
-                ->values();
-
+        if ($gamesPayload->isEmpty()) {
             return [
-                'game' => $game->loadMissing('injuries.player'),
-                'external_game_id' => $gamePayload['gameId'],
-                'injuries' => $injuries,
-                'inactive_players' => $inactivePlayers->values(),
+                'games' => [],
             ];
-        });
+        }
+
+        $gameExternalIds = $gamesPayload
+            ->pluck('gameId')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $teamExternalIds = $gamesPayload
+            ->flatMap(function (array $gamePayload) {
+                return [
+                    data_get($gamePayload, 'homeTeam.teamId'),
+                    data_get($gamePayload, 'awayTeam.teamId'),
+                ];
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $playerExternalIds = $gamesPayload
+            ->flatMap(function (array $gamePayload) {
+                return collect([
+                    data_get($gamePayload, 'homeTeam.players', []),
+                    data_get($gamePayload, 'awayTeam.players', []),
+                ])
+                    ->flatten(1)
+                    ->pluck('personId');
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $games = NbaGame::with(['homeTeam', 'awayTeam'])
+            ->whereIn('external_id', $gameExternalIds->all())
+            ->get()
+            ->keyBy('external_id');
+
+        $teams = NbaTeam::whereIn('external_id', $teamExternalIds->all())
+            ->get()
+            ->keyBy('external_id');
+
+        $players = NbaPlayer::whereIn('external_id', $playerExternalIds->all())
+            ->get()
+            ->keyBy('external_id');
+
+        $gamesResponse = $gamesPayload
+            ->map(function (array $gamePayload) use ($games, $teams, $players) {
+                $game = $games->get($gamePayload['gameId']);
+                $homeTeamPayload = data_get($gamePayload, 'homeTeam', []);
+                $awayTeamPayload = data_get($gamePayload, 'awayTeam', []);
+
+                $homeTeamModel = $teams->get($homeTeamPayload['teamId'] ?? null) ?? $game?->homeTeam;
+                $awayTeamModel = $teams->get($awayTeamPayload['teamId'] ?? null) ?? $game?->awayTeam;
+
+                $inactivePlayerPayloads = collect([
+                        $homeTeamPayload['players'] ?? [],
+                        $awayTeamPayload['players'] ?? [],
+                    ])
+                    ->flatten(1)
+                    ->filter(static fn (array $playerPayload) => strcasecmp($playerPayload['rosterStatus'] ?? '', 'Inactive') === 0)
+                    ->values();
+
+                $inactivePlayers = $inactivePlayerPayloads
+                    ->map(static fn (array $playerPayload) => $playerPayload['personId'] ?? null)
+                    ->filter()
+                    ->map(fn (int|string $externalPlayerId) => $players->get($externalPlayerId))
+                    ->filter();
+
+                if ($game) {
+                    $injuredPlayerIds = $inactivePlayers->pluck('id')->filter()->values()->all();
+
+                    if (empty($injuredPlayerIds)) {
+                        NbaInjury::where('game_id', $game->id)->delete();
+                    } else {
+                        NbaInjury::where('game_id', $game->id)
+                            ->whereNotIn('player_id', $injuredPlayerIds)
+                            ->delete();
+
+                        foreach ($injuredPlayerIds as $playerId) {
+                            NbaInjury::firstOrCreate([
+                                'game_id' => $game->id,
+                                'player_id' => $playerId,
+                            ]);
+                        }
+                    }
+                }
+
+                $mapPlayer = static function (array $playerPayload) use ($players) {
+                    $playerModel = $players->get($playerPayload['personId'] ?? null);
+                    $fallbackName = trim(($playerPayload['playerName'] ?? '') !== ''
+                        ? $playerPayload['playerName']
+                        : trim(($playerPayload['firstName'] ?? '') . ' ' . ($playerPayload['lastName'] ?? '')));
+
+                    return [
+                        'id' => $playerModel?->id,
+                        'name' => $playerModel?->full_name ?: ($fallbackName !== '' ? $fallbackName : null),
+                    ];
+                };
+
+                $transformTeam = static function (array $teamPayload, ?NbaTeam $teamModel) use ($mapPlayer) {
+                    $playerCollection = collect($teamPayload['players'] ?? []);
+
+                    $activePlayers = $playerCollection
+                        ->filter(static fn (array $playerPayload) => strcasecmp($playerPayload['rosterStatus'] ?? '', 'Active') === 0)
+                        ->values();
+
+                    return [
+                        'id' => $teamModel?->id,
+                        'name' => $teamModel?->name
+                            ?? $teamPayload['teamName']
+                            ?? $teamPayload['teamAbbreviation']
+                            ?? null,
+                        'starters' => $activePlayers->take(5)->map($mapPlayer)->values()->all(),
+                        'bench' => $activePlayers->skip(5)->map($mapPlayer)->values()->all(),
+                        'injuries' => $playerCollection
+                            ->filter(static fn (array $playerPayload) => strcasecmp($playerPayload['rosterStatus'] ?? '', 'Inactive') === 0)
+                            ->map($mapPlayer)
+                            ->values()
+                            ->all(),
+                    ];
+                };
+                return [
+                    'id' => $game?->id,
+                    'away_team' => $transformTeam($awayTeamPayload, $awayTeamModel),
+                    'home_team' => $transformTeam($homeTeamPayload, $homeTeamModel),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'games' => $gamesResponse,
+        ];
     }
 }

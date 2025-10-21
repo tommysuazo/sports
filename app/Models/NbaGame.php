@@ -34,6 +34,11 @@ class NbaGame extends Model
         return $this->belongsTo(NbaTeam::class, 'home_team_id');
     }
 
+    public function stats()
+    {
+        return $this->hasMany(NbaTeamStat::class, 'game_id');
+    }
+
     public function awayStat(): HasOne
     {
         return $this->hasOne(NbaTeamStat::class, 'game_id')

@@ -31,6 +31,8 @@ Route::middleware(['api'])->group(function () {
         });
 
         Route::prefix('/games')->group(function () {
+            Route::get('/', [NbaGameController::class, 'index']);
+            Route::get('/lineups', [NbaGameController::class, 'getLineups']);
             Route::post('/import', [NbaGameController::class, 'importByDateRange']);
         });
 

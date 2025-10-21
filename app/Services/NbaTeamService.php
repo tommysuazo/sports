@@ -108,9 +108,9 @@ class NbaTeamService
                     'short_name' => $team->short_name,
                     'city' => $team->city,
                 ],
+                'requested_games' => $games,
                 'records' => [
                     'last_games' => [
-                        'requested' => $games,
                         'games_evaluated' => $record['games_evaluated'],
                         'wins' => $record['wins'],
                         'losses' => $record['losses'],

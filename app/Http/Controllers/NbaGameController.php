@@ -26,8 +26,17 @@ class NbaGameController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        return $this->nbaGameService->list(
+            $request->only(['team', 'page', 'all'])
+        );
+    }
+
+    public function index2()
+    {
+
+        
 
         // return DigitalSportsTechService::getFakeGamePointsMarket();
         // return response()->json(NbaExternalService::getTeamStats()->json());
@@ -79,7 +88,7 @@ class NbaGameController extends Controller
 
     public function getLineups()
     {
-        return $this->nbaGameService->getLineups();
+        return response()->json($this->nbaGameService->getLineups());
     }
 
     public function show(NbaGame $nbaGame)
