@@ -5,14 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class NbaGameMarket extends Model
+class NbaTeamMarket extends Model
 {
     protected $fillable = [
         'game_id',
-        'favorite_team_id',
-        'handicap',
+        'team_id',
         'points',
-        'first_half_handicap',
         'first_half_points',
         'first_quarter_points',
         'second_quarter_points',
@@ -25,8 +23,8 @@ class NbaGameMarket extends Model
         return $this->belongsTo(NbaGame::class);
     }
 
-    public function favoriteTeam(): BelongsTo
+    public function team(): BelongsTo
     {
-        return $this->belongsTo(NbaTeam::class, 'favorite_team_id');
+        return $this->belongsTo(NbaTeam::class);
     }
 }

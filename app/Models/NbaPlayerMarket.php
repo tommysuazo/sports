@@ -3,18 +3,27 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NbaPlayerMarket extends Model
 {
     protected $fillable = [
-        'favorite_team_id',
-        'handicap',
+        'game_id',
+        'player_id',
         'points',
-        'first_half_handicap',
-        'first_half_points',
-        'first_quarter_points',
-        'second_quarter_points',
-        'third_quarter_points',
-        'fourth_quarter_points',
+        'assists',
+        'rebounds',
+        'pt3',
+        'pra',
     ];
+
+    public function game(): BelongsTo
+    {
+        return $this->belongsTo(NbaGame::class, 'game_id');
+    }
+
+    public function player(): BelongsTo
+    {
+        return $this->belongsTo(NbaPlayer::class, 'player_id');
+    }
 }

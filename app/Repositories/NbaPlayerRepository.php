@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\NbaPlayer;
 use App\Models\NbaTeam;
+use App\Models\NbaPlayerMarket;
 
 class NbaPlayerRepository 
 {
@@ -24,19 +25,6 @@ class NbaPlayerRepository
 
     public function updateTeam(NbaPlayer $nbaPlayer, NbaTeam $nbaTeam)
     {
-        $nbaPlayer->update(['team_id', $nbaTeam->id]);
-    }
-
-    public function clearPlayerMarkets()
-    {
-        NbaPlayer::query()->update([
-            'points_market' => null,
-            'assists_market' => null,
-            'rebounds_market' => null,
-            'pt3_market' => null,
-            'pra_market' => null,
-            'steals_market' => null,
-            'blocks_market' => null,
-        ]);
+        $nbaPlayer->update(['team_id' => $nbaTeam->id]);
     }
 }

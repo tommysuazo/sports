@@ -16,10 +16,10 @@ return new class extends Migration
             $table->id();
             // $table->string('sportsnet_id')->unique();
             $table->string('external_id')->unique();
-            $table->string('market_id')->unique();
+            $table->string('market_id')->nullable()->unique();
             $table->foreignId('away_team_id')->constrained('nba_teams');
             $table->foreignId('home_team_id')->constrained('nba_teams');
-            $table->foreignId('winner_team_id')->nullable()->constrained('nhl_teams');
+            $table->foreignId('winner_team_id')->nullable()->constrained('nba_teams');
             $table->timestamp('start_at');
             $table->boolean('is_completed');
             $table->timestamps();

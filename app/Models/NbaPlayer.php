@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class NbaPlayer extends Model
 {
@@ -46,5 +47,20 @@ class NbaPlayer extends Model
         return $this->scores()->whereHas('game', function ($query) use ($rivalTeam) {
             $query->where('home_team_id', $rivalTeam->id)->orWhere('away_team_id', $rivalTeam->id);
         });
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim("{$this->first_name} {$this->last_name}");
+    }
+
+    public function markets(): HasMany
+    {
+        return $this->hasMany(NbaPlayerMarket::class, 'player_id');
+    }
+
+    public function currentMarket(): HasOne
+    {
+        return $this->hasOne(NbaPlayerMarket::class, 'player_id')->latestOfMany();
     }
 }

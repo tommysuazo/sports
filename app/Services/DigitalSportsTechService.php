@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\DigitalSportsTech\DigitalSportsTechLeagueEnum;
 use App\Enums\DigitalSportsTech\DigitalSportsTechNbaEnum;
 use App\Enums\DigitalSportsTech\DigitalSportsTechWnbaEnum;
+use App\Models\NbaGame;
 use App\Models\NbaPlayer;
+use App\Models\NbaPlayerMarket;
 use App\Repositories\NbaPlayerRepository;
 use Exception;
 use Illuminate\Support\Facades\Cache;
@@ -53,37 +55,6 @@ class DigitalSportsTechService
 
     public function syncNbaMarkets()
     {
-        Cache::put('all', []);
-        foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
-            $marketTypesRequest = Http::get($this->getPlayerMarketsByTypeUrl($marketType, 'nba'));
-
-            if (!$marketTypesRequest->successful()) {
-                throw new Exception("Failed to get nba {$statType} markets from digital sports tech");
-            }
-            
-            Cache::put('all', array_merge(Cache::get('all'), [$statType]));
-            Cache::put($statType, $marketTypesRequest->json());
-
-            foreach ($marketTypesRequest->json('*.providers.0.id') as $marketTypeId) {
-                $playerMarketTypeRequest = Http::get($this->getGamePlayerMarketUrl($marketType, $marketTypeId));
-
-                Cache::put('all', array_merge(Cache::get('all'),[$statType . '-' . $marketTypeId]));
-                Cache::put($statType . '-' . $marketTypeId, $marketTypesRequest->json());
-
-                if (!$playerMarketTypeRequest->successful()) {
-                    throw new Exception("Failed to get nba markets id {$marketTypeId} from digital sports tech");
-                }
-
-                foreach ($playerMarketTypeRequest->json('0.players') as $playerMarket) {
-                    $value = $playerMarket['markets'][0]['value'];
-                    NbaPlayer::where('market_id', $playerMarket['id'])->update([$statType . '_market' => $value]);
-                }
-            }
-        }
-    }
-
-    public function getMarkets2()
-    {
         foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
             $marketTypesRequest = Http::get($this->getPlayerMarketsByTypeUrl($marketType, 'nba'));
 
@@ -99,26 +70,29 @@ class DigitalSportsTechService
                 }
 
                 foreach ($playerMarketTypeRequest->json('0.players') as $playerMarket) {
-                    $value = $playerMarket['markets'][0]['value'];
-                    NbaPlayer::where('market_id', $playerMarket['id'])->update([$statType . '_market' => $value]);
-                }
-            }
-        }
-    }
-    
-    public function syncNbaMarkets2()
-    {
-        foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
-            $marketTypesRequest = Cache::get('marketType-' . $statType);
+                    $value = data_get($playerMarket, 'markets.0.value');
 
-            foreach (Collect($marketTypesRequest)->pluck('providers.0.id') as $marketTypeId) {
-                $playerMarketTypeRequest = Cache::get("marketType-{$statType}-{$marketTypeId}");
+                    if (is_null($value)) {
+                        continue;
+                    }
 
-                dd(Collect($playerMarketTypeRequest)->pluck('0.players'));
+                    $player = NbaPlayer::firstWhere('market_id', $playerMarket['id']);
 
-                foreach (Collect($playerMarketTypeRequest)->pluck('0.players') as $playerMarket) {
-                    $value = $playerMarket['markets'][0]['value'];
-                    NbaPlayer::where('market_id', $playerMarket['id'])->update([$statType . '_market' => $value]);
+                    if (!$player) {
+                        continue;
+                    }
+
+                    $game = NbaGame::firstWhere('market_id', (string) $marketTypeId);
+
+                    NbaPlayerMarket::updateOrCreate(
+                        [
+                            'game_id' => $game?->id,
+                            'player_id' => $player->id,
+                        ],
+                        [
+                            $statType => $value,
+                        ]
+                    );
                 }
             }
         }

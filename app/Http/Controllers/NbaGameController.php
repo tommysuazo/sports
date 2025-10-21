@@ -41,7 +41,7 @@ class NbaGameController extends Controller
         // return NbaExternalService::getGameByid('1022500123')->json();
 
         // return NbaExternalService::getTodayLineups();
-        return $this->nbaExternalService->getGameDay(Carbon::parse('2025-04-05'))->json();
+        // return $this->nbaExternalService->getGameDay(Carbon::parse('2025-04-05'))->json();
         // return $this->digitalSportsTechService->syncNbaPlayerMarketIds();
         // return NbaExternalService::getGameDayUrl(Carbon::parse('2025-02-20'))->json();
         // return $this->sportsnetService->getTeamPlayersUrl(LeagueEnum::NBA->value, '583ecb8f-fb46-11e1-82cb-f4ce4684ea4c');
@@ -68,14 +68,7 @@ class NbaGameController extends Controller
 
         // return $response->json('resultSets.0.rowSet');
 
-        return Http::get($this->digitalSportsTechService->getTeamPlayersUrl(LeagueEnum::NBA->value, 'CHI'))->json();
-
-        $playerMarkets = Cache::get('market')[0]['players'];
-  
-        foreach ($playerMarkets as $playerMarket) {
-            $value = $playerMarket['markets'][0]['value'];
-            NbaPlayer::where('market_id', $playerMarket['id'])->update(['point_market' => $value]);
-        }
+        // return Http::get($this->digitalSportsTechService->getTeamPlayersUrl(LeagueEnum::NBA->value, 'CHI'))->json();
     }
 
     public function importByDateRange(ImportNbaGamesRequest $request)
