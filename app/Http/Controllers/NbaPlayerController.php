@@ -15,8 +15,9 @@ class NbaPlayerController extends Controller
             return $player->load([
                 'stats' => function($query) {
                     $query->with([
-                        'game' => fn($gameQuery) => $gameQuery->with(['awayTeam', 'homeTeam', 'awayStat', 'homeStat'])
-                    ]);
+                        'game' => fn($gameQuery) => $gameQuery->with(['awayTeam', 'homeTeam', 'stats', 'injuries'])
+                    ])
+                    ->take(16);
                 }
             ]);
         });

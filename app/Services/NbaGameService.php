@@ -125,14 +125,38 @@ class NbaGameService
                     ->filter(static fn (array $playerPayload) => strcasecmp($playerPayload['rosterStatus'] ?? '', 'Inactive') === 0)
                     ->values();
 
-                $inactivePlayers = $inactivePlayerPayloads
-                    ->map(static fn (array $playerPayload) => $playerPayload['personId'] ?? null)
-                    ->filter()
-                    ->map(fn (int|string $externalPlayerId) => $players->get($externalPlayerId))
-                    ->filter();
-
                 if ($game) {
-                    $injuredPlayerIds = $inactivePlayers->pluck('id')->filter()->values()->all();
+                    $injuryPayloads = $inactivePlayerPayloads
+                        ->map(function (array $playerPayload) use ($players, $teams) {
+                            $playerModel = $players->get($playerPayload['personId'] ?? null);
+
+                            if (!$playerModel) {
+                                return null;
+                            }
+
+                            $teamId = $playerModel->team_id;
+
+                            if (!$teamId && !empty($playerPayload['teamId'])) {
+                                $teamId = optional($teams->get($playerPayload['teamId']))?->id;
+                            }
+
+                            if (!$teamId) {
+                                return null;
+                            }
+
+                            return [
+                                'player_id' => $playerModel->id,
+                                'team_id' => $teamId,
+                            ];
+                        })
+                        ->filter()
+                        ->values();
+
+                    $injuredPlayerIds = $injuryPayloads
+                        ->pluck('player_id')
+                        ->unique()
+                        ->values()
+                        ->all();
 
                     if (empty($injuredPlayerIds)) {
                         NbaInjury::where('game_id', $game->id)->delete();
@@ -141,10 +165,11 @@ class NbaGameService
                             ->whereNotIn('player_id', $injuredPlayerIds)
                             ->delete();
 
-                        foreach ($injuredPlayerIds as $playerId) {
+                        foreach ($injuryPayloads->unique(fn (array $payload) => "{$payload['player_id']}-{$payload['team_id']}") as $payload) {
                             NbaInjury::firstOrCreate([
                                 'game_id' => $game->id,
-                                'player_id' => $playerId,
+                                'player_id' => $payload['player_id'],
+                                'team_id' => $payload['team_id'],
                             ]);
                         }
                     }

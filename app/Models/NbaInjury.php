@@ -18,6 +18,7 @@ class NbaInjury extends Model
 
     protected $fillable = [
         'game_id',
+        'team_id',
         'player_id',
     ];
 
@@ -29,5 +30,10 @@ class NbaInjury extends Model
     public function player(): BelongsTo
     {
         return $this->belongsTo(NbaPlayer::class, 'player_id');
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(NbaTeam::class, 'team_id');
     }
 }

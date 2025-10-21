@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('nba_injuries', function (Blueprint $table) {
             $table->foreignId('game_id')->constrained('nba_games');
+            $table->foreignId('team_id')->constrained('nba_teams');
             $table->foreignId('player_id')->constrained('nba_players');
         });
     }
