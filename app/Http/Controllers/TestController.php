@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechNflEnum;
 use App\Enums\NflWeekEnum;
+use App\Models\NbaTeam;
 use App\Models\NflGame;
 use App\Models\NflPlayer;
 use App\Models\NflTeam;
@@ -23,11 +24,20 @@ class TestController extends Controller
 
     public function __invoke()
     {
-        $repo = resolve(NbaExternalService::class);
+        $request = Http::withHeaders(NbaExternalService::headers())
+            ->get(NbaExternalService::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2025-26');
 
-        $games = $repo->getGameByid("0022401128");
+        return $players = $request->json();
+
+        // return NbaTeam::all();
         
-        return $games->json();
+        // $repo = resolve(NbaExternalService::class);
+
+        // // $games = $repo->getGameByid("0022401128");
+
+        // $games = NbaExternalService::getPlayers();
+        
+        // return $games;
 
         // return $repo->getGameByid('0022400184')->json();
 

@@ -53,7 +53,7 @@ class ImportNbaGames extends Command
                 ->value('start_at');
 
             $cursorDate = $lastCompletedGameDate
-                ? Carbon::parse($lastCompletedGameDate)->startOfDay()
+                ? Carbon::parse($lastCompletedGameDate)->setTimezone(config('app.user_timezone'))->startOfDay()
                 : Carbon::parse(config('nba.start_date'))->startOfDay();
 
             $seasonEnd = Carbon::parse(config('nba.end_date'))->endOfDay();

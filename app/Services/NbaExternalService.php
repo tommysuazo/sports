@@ -36,7 +36,7 @@ class NbaExternalService
     public static function getPlayers()
     {   
         $request = Http::withHeaders(self::headers())
-            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2024-25');
+            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2025-26');
 
         if (!$request->successful()) {
             throw new KnownException("Fallo en el retorno de jugadores de Nba con la clase " . __CLASS__);
@@ -79,8 +79,10 @@ class NbaExternalService
 
     public static function getTodayLineups()
     {
+        $date = now()->setTimezone(config('app.user_timezone'))->format('Ymd');
+
         $request = Http::withHeaders(self::headers())
-            ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . now()->format('Ymd') . '.json');
+            ->get(self::BASE_URL . '/js/data/leaders/00_daily_lineups_' . $date . '.json');
         
         if (!$request->successful()) {
             throw new KnownException("Fallo al intentar obtener las alineaciones del dia de hoy");
@@ -98,6 +100,7 @@ class NbaExternalService
         $lastGameImported = null;
 
         foreach ($games as $gameData) {
+            logger()->info("Importando juego con ID externo " . $gameData['gameId']);
             $lastGameImported = $this->createGame($gameData);
         }
 
@@ -184,6 +187,8 @@ class NbaExternalService
         $fourthQuarterPoints = data_get($quarters->firstWhere('period', 4), 'score', 0);
         $overtimes = $quarters->where('periodType', 'OVERTIME');
 
+        logger()->info($statistics);
+
         return $this->nbaTeamStatRepository->create([
             'points' => $statistics['points'],
             'is_away' => $nbaGame->away_team_id === $nbaTeam->id,
@@ -263,7 +268,7 @@ class NbaExternalService
         $this->nbaTeamRepository->syncRecordWithGames($loser);
     }
 
-    protected static function headers(): array
+    public static function headers(): array
     {
         return [
             "Accept-Encoding" => " gzip, deflate, br, zstd",

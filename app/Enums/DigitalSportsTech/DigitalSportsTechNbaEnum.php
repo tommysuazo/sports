@@ -23,8 +23,6 @@ enum DigitalSportsTechNbaEnum: string
         return $marketTypes[$type] ?? $marketTypes;
     }
 
-    
-
     public static function getTeamIds()
     {
         return [

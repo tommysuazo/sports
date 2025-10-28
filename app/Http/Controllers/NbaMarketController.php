@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\NBA\NbaGameMatchupResource;
 use App\Services\NbaMarketService;
 use Illuminate\Http\Request;
 
@@ -13,16 +12,18 @@ class NbaMarketController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return $this->nbaMarketService->getLiveMarkets();
+        $resolvedDate = $request->query('date');
+
+        return $this->nbaMarketService->getLiveMarkets($resolvedDate);
     }
 
-    public function matchups()
+    public function matchups(Request $request)
     {
-        return $this->nbaMarketService->getMatchups();
-        
-        // return NbaGameMatchupResource::collection($this->nbaMarketService->getMatchups());
+        $resolvedDate = $request->query('date');
+
+        return $this->nbaMarketService->getMatchups($resolvedDate);
     }
 
     public function sync(Request $request)
