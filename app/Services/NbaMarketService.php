@@ -414,6 +414,7 @@ class NbaMarketService
         }
 
         $market = NbaGameMarket::firstOrNew(['game_id' => $game->id]);
+        $updates['handicap'] = $updates['handicap'] ?? 0;
         $market->fill($updates);
         $market->save();
 

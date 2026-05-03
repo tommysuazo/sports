@@ -9,18 +9,19 @@ class NbaPlayerController extends Controller
 {
     public function getStats(NbaPlayer $player)
     {
-        $cacheKey = sprintf('nba-player-stats:%s', $player->getKey());
+        // $cacheKey = sprintf('nba-player-stats:%s', $player->getKey());
 
-        return Cache::tags(['nba-player-stats'])->rememberForever($cacheKey, function () use ($player) {
+        // return Cache::tags(['nba-player-stats'])->rememberForever($cacheKey, function () use ($player) {
             return $player->load([
                 'stats' => function($query) {
                     $query->with([
                         'game' => fn($gameQuery) => $gameQuery->with(['awayTeam', 'homeTeam', 'stats', 'injuries'])
                     ])
+                    ->orderByDesc('nba_player_stats.id')
                     ->take(16);
                 }
             ]);
-        });
+        // });
     }
 
     public function getScores(NbaPlayer $player)

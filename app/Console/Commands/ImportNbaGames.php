@@ -31,7 +31,10 @@ class ImportNbaGames extends Command
             ->all();
 
         if ((bool) $this->option('all')) {
-            $startDate = Carbon::parse(config('nba.start_date'));
+            $startDate = Carbon::parse(
+                '2026-04-29'
+                // config('nba.start_date')
+            );
             $endDate   = Carbon::parse(config('nba.end_date'));
 
             while ($startDate->lte($endDate)) {

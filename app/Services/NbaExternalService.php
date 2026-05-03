@@ -162,7 +162,13 @@ class NbaExternalService
                 $loserTeam = $awayTeamWon ? $homeTeam : $awayTeam;
 
                 $this->updateTeamRecords($winnerTeam, $loserTeam);
+                
+            } elseif ($game->start_at !== $gameData['gameTimeUTC']) {
+                $game->start_at = $gameData['gameTimeUTC'];
+                $game->save();
             }
+
+
 
             DB::commit();
 
