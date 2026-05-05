@@ -3,16 +3,12 @@
 namespace App\Services;
 
 use App\Models\NhlTeam;
+use App\Models\NhlTeamStat;
 use App\Repositories\NhlTeamStatRepository;
+use Illuminate\Support\Collection;
 
 class NhlTeamService
 {
-    /** @var array<int, string> */
-    protected array $rankingMetrics = [
-        'goals',
-        'shots',
-    ];
-
     public function __construct(
         protected NhlTeamStatRepository $nhlTeamStatRepository,
     ) {
@@ -37,89 +33,226 @@ class NhlTeamService
         ];
     }
 
-    public function getTeamsAverageStats(): array
+    public function getTeamsAverageStats(int $games = 7): array
+    {
+        return $this->getTeamsRecentPerformance($games);
+    }
+
+    public function getTeamsRecentPerformance(int $games = 7): array
     {
         $teams = NhlTeam::orderBy('name')->get(['id', 'name', 'code', 'city']);
-        $aggregated = $this->nhlTeamStatRepository->getAverageStatsForAllTeams();
 
-        $teamsDataCollection = $teams->mapWithKeys(function (NhlTeam $team) use ($aggregated) {
-            $stats = $aggregated[$team->id] ?? null;
-            $forValues = $stats['averages']['for'] ?? [];
-            $againstValues = $stats['averages']['against'] ?? [];
+        $teamsData = $teams->map(function (NhlTeam $team) use ($games) {
+            $recentStats = $this->nhlTeamStatRepository->getRecentStatsWithGameData($team, $games);
+
+            $record = $this->calculateRecentRecord($recentStats, $team->id);
+            $ats = $this->calculateAgainstTheSpreadRecord($recentStats, $team->id);
+            $overUnder = $this->calculateTotalsRecord($recentStats, $team->id);
 
             return [
-                $team->id => [
-                    'team' => [
-                        'id' => $team->id,
-                        'name' => $team->name,
-                        'code' => $team->code,
-                        'city' => $team->city,
+                'team' => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'code' => $team->code,
+                    'city' => $team->city,
+                ],
+                'requested_games' => $games,
+                'records' => [
+                    'last_games' => [
+                        'games_evaluated' => $record['games_evaluated'],
+                        'wins' => $record['wins'],
+                        'losses' => $record['losses'],
                     ],
-                    'games_with_stats' => (int) ($stats['games_with_stats'] ?? 0),
-                    'averages' => [
-                        'for' => $this->normalizeMetrics($forValues),
-                        'against' => $this->normalizeMetrics($againstValues),
+                    'ats' => [
+                        'wins' => $ats['wins'],
+                        'losses' => $ats['losses'],
+                        'pushes' => $ats['pushes'],
+                        'games_evaluated' => $ats['games_evaluated'],
                     ],
-                    'rankings' => [
-                        'offense' => array_fill_keys($this->rankingMetrics, null),
-                        'defense' => array_fill_keys($this->rankingMetrics, null),
+                    'over_under' => [
+                        'over' => $overUnder['over'],
+                        'under' => $overUnder['under'],
+                        'pushes' => $overUnder['pushes'],
+                        'games_evaluated' => $overUnder['games_evaluated'],
                     ],
                 ],
+                'summary' => $this->buildPerformanceSummary($games, $record, $ats, $overUnder),
             ];
-        });
-
-        $teamsDataArray = $teamsDataCollection->all();
-
-        $this->assignRankings($teamsDataArray, 'for', 'offense', true);
-        $this->assignRankings($teamsDataArray, 'against', 'defense', false);
+        })->values();
 
         return [
-            'teams' => array_values(array_map(function (array $data) {
-                return [
-                    'team' => $data['team'],
-                    'games_with_stats' => $data['games_with_stats'],
-                    'ofensive' => $this->buildMetricResponse($data['averages']['for'], $data['rankings']['offense']),
-                    'defensive' => $this->buildMetricResponse($data['averages']['against'], $data['rankings']['defense']),
-                ];
-            }, $teamsDataArray)),
+            'teams' => $teamsData->toArray(),
         ];
     }
 
-    protected function normalizeMetrics(array $values): array
+    protected function calculateRecentRecord(Collection $stats, int $teamId): array
     {
-        $defaults = array_fill_keys($this->rankingMetrics, null);
-        $filtered = array_intersect_key($values, $defaults);
+        $wins = 0;
+        $losses = 0;
 
-        return array_replace($defaults, $filtered);
-    }
+        foreach ($stats as $stat) {
+            $game = $stat->game;
 
-    protected function buildMetricResponse(array $values, array $ranks): array
-    {
-        $response = [];
+            if (!$game) {
+                continue;
+            }
 
-        foreach ($this->rankingMetrics as $metric) {
-            $response[$metric] = [
-                'value' => $values[$metric],
-                'rank' => $ranks[$metric],
-            ];
-        }
+            $winnerId = $game->winner_team_id ? (int) $game->winner_team_id : null;
 
-        return $response;
-    }
+            if ($winnerId !== null) {
+                if ($winnerId === $teamId) {
+                    $wins++;
+                } elseif (in_array($winnerId, [(int) $game->home_team_id, (int) $game->away_team_id], true)) {
+                    $losses++;
+                }
+                continue;
+            }
 
-    protected function assignRankings(array &$teamsDataArray, string $averageSide, string $rankingSide, bool $descending): void
-    {
-        foreach ($this->rankingMetrics as $metric) {
-            $collection = collect($teamsDataArray)
-                ->filter(fn (array $data) => $data['averages'][$averageSide][$metric] !== null);
+            $teamGoals = $this->castNullableFloat($stat->goals);
+            $opponentGoals = $this->resolveOpponentGoals($stat, $teamId);
 
-            $sorted = $descending
-                ? $collection->sortByDesc(fn (array $data) => $data['averages'][$averageSide][$metric])
-                : $collection->sortBy(fn (array $data) => $data['averages'][$averageSide][$metric]);
+            if ($teamGoals === null || $opponentGoals === null) {
+                continue;
+            }
 
-            foreach ($sorted->keys()->values() as $index => $teamId) {
-                $teamsDataArray[$teamId]['rankings'][$rankingSide][$metric] = $index + 1;
+            if ($teamGoals > $opponentGoals) {
+                $wins++;
+            } elseif ($teamGoals < $opponentGoals) {
+                $losses++;
             }
         }
+
+        return [
+            'wins' => $wins,
+            'losses' => $losses,
+            'games_evaluated' => $wins + $losses,
+        ];
+    }
+
+    protected function calculateAgainstTheSpreadRecord(Collection $stats, int $teamId): array
+    {
+        $wins = 0;
+        $losses = 0;
+        $pushes = 0;
+
+        foreach ($stats as $stat) {
+            $game = $stat->game;
+            $market = $game?->market;
+
+            if (!$game || !$market || $market->favorite_team_id === null || $market->handicap === null) {
+                continue;
+            }
+
+            $teamGoals = $this->castNullableFloat($stat->goals);
+            $opponentGoals = $this->resolveOpponentGoals($stat, $teamId);
+            $handicap = $this->castNullableFloat($market->handicap);
+
+            if ($teamGoals === null || $opponentGoals === null || $handicap === null) {
+                continue;
+            }
+
+            $isFavorite = (int) $market->favorite_team_id === $teamId;
+            $margin = $teamGoals - $opponentGoals;
+            $spreadResult = $isFavorite ? $margin - $handicap : $margin + $handicap;
+
+            if ($spreadResult > 0) {
+                $wins++;
+            } elseif ($spreadResult < 0) {
+                $losses++;
+            } else {
+                $pushes++;
+            }
+        }
+
+        return [
+            'wins' => $wins,
+            'losses' => $losses,
+            'pushes' => $pushes,
+            'games_evaluated' => $wins + $losses + $pushes,
+        ];
+    }
+
+    protected function calculateTotalsRecord(Collection $stats, int $teamId): array
+    {
+        $overs = 0;
+        $unders = 0;
+        $pushes = 0;
+
+        foreach ($stats as $stat) {
+            $game = $stat->game;
+            $market = $game?->market;
+
+            if (!$game || !$market || $market->total_points === null) {
+                continue;
+            }
+
+            $teamGoals = $this->castNullableFloat($stat->goals);
+            $opponentGoals = $this->resolveOpponentGoals($stat, $teamId);
+            $totalLine = $this->castNullableFloat($market->total_points);
+
+            if ($teamGoals === null || $opponentGoals === null || $totalLine === null) {
+                continue;
+            }
+
+            $totalGoals = $teamGoals + $opponentGoals;
+
+            if ($totalGoals > $totalLine) {
+                $overs++;
+            } elseif ($totalGoals < $totalLine) {
+                $unders++;
+            } else {
+                $pushes++;
+            }
+        }
+
+        return [
+            'over' => $overs,
+            'under' => $unders,
+            'pushes' => $pushes,
+            'games_evaluated' => $overs + $unders + $pushes,
+        ];
+    }
+
+    protected function resolveOpponentGoals(NhlTeamStat $stat, int $teamId): ?float
+    {
+        $game = $stat->game;
+
+        if (!$game) {
+            return null;
+        }
+
+        $opponentStat = $game->stats
+            ->first(fn (NhlTeamStat $gameStat) => (int) $gameStat->team_id !== $teamId);
+
+        return $this->castNullableFloat($opponentStat?->goals);
+    }
+
+    protected function buildPerformanceSummary(int $gamesRequested, array $record, array $ats, array $overUnder): string
+    {
+        return sprintf(
+            'L%d %d-%d ATS %d-%d-%d O/U %d-%d-%d',
+            $gamesRequested,
+            $record['wins'] ?? 0,
+            $record['losses'] ?? 0,
+            $ats['wins'] ?? 0,
+            $ats['losses'] ?? 0,
+            $ats['pushes'] ?? 0,
+            $overUnder['over'] ?? 0,
+            $overUnder['under'] ?? 0,
+            $overUnder['pushes'] ?? 0
+        );
+    }
+
+    protected function castNullableFloat($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 }

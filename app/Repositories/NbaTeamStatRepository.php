@@ -87,8 +87,7 @@ class NbaTeamStatRepository
                     'is_completed'
                 ),
                 'game.market:id,game_id,favorite_team_id,handicap,points',
-                'game.homeStat:id,game_id,team_id,points',
-                'game.awayStat:id,game_id,team_id,points',
+                'game.stats:id,game_id,team_id,points',
             ])
             ->where('team_id', $team->id)
             ->whereHas('game', static fn ($query) => $query->where('is_completed', true))

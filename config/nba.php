@@ -3,7 +3,7 @@
 return [
     // Temporada NBA 2025-26
     'start_date' => '2026-02-30',  // inicio de temporada regular
-    'end_date'   => '2026-05-02',  // fin de temporada regular
+    'end_date'   => '2026-05-03',  // fin de temporada regular
 
     // Días a excluir (no hay jornada regular)
     'exclude_dates' => [

@@ -2,7 +2,10 @@
 
 namespace App\Repositories;
 
+use App\Models\NflGame;
 use App\Models\NflTeam;
+use App\Models\NflTeamStat;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class NflTeamStatRepository
@@ -77,6 +80,31 @@ class NflTeamStatRepository
                 ],
             ];
         })->toArray();
+    }
+
+    public function getRecentStatsWithGameData(NflTeam $team, int $limit = 7): Collection
+    {
+        return NflTeamStat::query()
+            ->with([
+                'game' => static fn ($query) => $query->select(
+                    'id',
+                    'home_team_id',
+                    'away_team_id',
+                    'played_at',
+                    'is_completed'
+                ),
+                'game.market:id,game_id,favorite_team_id,handicap,total_points',
+                'game.stats:id,game_id,team_id,points_total',
+            ])
+            ->where('team_id', $team->id)
+            ->whereHas('game', static fn ($query) => $query->where('is_completed', true))
+            ->orderByDesc(
+                NflGame::select('played_at')
+                    ->whereColumn('nfl_games.id', 'nfl_team_stats.game_id')
+                    ->limit(1)
+            )
+            ->limit($limit)
+            ->get();
     }
 
     public function getStatsCountForTeams(?array $teamIds = null): array

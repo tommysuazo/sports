@@ -2,7 +2,10 @@
 
 namespace App\Repositories;
 
+use App\Models\NhlGame;
 use App\Models\NhlTeam;
+use App\Models\NhlTeamStat;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class NhlTeamStatRepository
@@ -67,6 +70,32 @@ class NhlTeamStatRepository
                 ],
             ];
         })->toArray();
+    }
+
+    public function getRecentStatsWithGameData(NhlTeam $team, int $limit = 7): Collection
+    {
+        return NhlTeamStat::query()
+            ->with([
+                'game' => static fn ($query) => $query->select(
+                    'id',
+                    'home_team_id',
+                    'away_team_id',
+                    'winner_team_id',
+                    'start_at',
+                    'is_completed'
+                ),
+                'game.market:id,game_id,favorite_team_id,handicap,total_points',
+                'game.stats:id,game_id,team_id,goals',
+            ])
+            ->where('team_id', $team->id)
+            ->whereHas('game', static fn ($query) => $query->where('is_completed', true))
+            ->orderByDesc(
+                NhlGame::select('start_at')
+                    ->whereColumn('nhl_games.id', 'nhl_team_stats.game_id')
+                    ->limit(1)
+            )
+            ->limit($limit)
+            ->get();
     }
 
     public function getStatsCountForTeams(?array $teamIds = null): array

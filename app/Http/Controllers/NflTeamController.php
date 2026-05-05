@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\NflTeam;
 use App\Services\NflTeamService;
+use Illuminate\Http\Request;
 
 class NflTeamController extends Controller
 {
@@ -17,9 +18,11 @@ class NflTeamController extends Controller
         return $this->nflTeamService->getTeamStats($team);
     }
 
-    public function getAverageStatsAll()
+    public function getAverageStatsAll(Request $request)
     {
-        return $this->nflTeamService->getTeamsAverageStats();
+        $games = max(1, (int) $request->integer('games', 7));
+
+        return $this->nflTeamService->getTeamsAverageStats($games);
     }
 
     public function getAverageStats(NflTeam $team)

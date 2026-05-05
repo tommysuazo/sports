@@ -192,7 +192,7 @@ class NbaTeamService
             if ($winnerId !== null) {
                 if ($winnerId === $teamId) {
                     $wins++;
-                } elseif (in_array($winnerId, [$game->home_team_id, $game->away_team_id], true)) {
+                } elseif (in_array($winnerId, [(int) $game->home_team_id, (int) $game->away_team_id], true)) {
                     $losses++;
                 }
                 continue;
@@ -311,15 +311,10 @@ class NbaTeamService
             return null;
         }
 
-        if ((int) $game->home_team_id === $teamId) {
-            return $this->castNullableFloat($game->awayStat?->points);
-        }
+        $opponentStat = $game->stats
+            ->first(fn (NbaTeamStat $gameStat) => (int) $gameStat->team_id !== $teamId);
 
-        if ((int) $game->away_team_id === $teamId) {
-            return $this->castNullableFloat($game->homeStat?->points);
-        }
-
-        return null;
+        return $this->castNullableFloat($opponentStat?->points);
     }
 
     protected function buildPerformanceSummary(int $gamesRequested, array $record, array $ats, array $overUnder): string
