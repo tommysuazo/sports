@@ -14,6 +14,9 @@ use App\Http\Controllers\NhlPlayerController;
 use App\Http\Controllers\NhlTeamController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\WnbaGameController;
+use App\Http\Controllers\WnbaMarketController;
+use App\Http\Controllers\WnbaPlayerController;
+use App\Http\Controllers\WnbaTeamController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -59,17 +62,27 @@ Route::middleware(['api'])->group(function () {
     Route::prefix('/wnba')->group(function () {
         Route::prefix('/games')->group(function () {
             Route::get('/', [WnbaGameController::class, 'index']);
+            Route::get('/lineups', [WnbaGameController::class, 'getLineups']);
             Route::post('/import', [WnbaGameController::class, 'importByDateRange']);
         });
 
         Route::prefix('/markets')->group(function () {
-            Route::get('/', [WnbaGameController::class, 'index']);
-            Route::get('/matchups', [WnbaGameController::class, 'matchups']);
-            Route::put('/sync', [WnbaGameController::class, 'sync']);
-            Route::put('/sync-players', [WnbaGameController::class, 'syncWnbaPlayers']);
+            Route::get('/', [WnbaMarketController::class, 'index']);
+            Route::get('/matchups', [WnbaMarketController::class, 'matchups']);
+            Route::put('/sync', [WnbaMarketController::class, 'sync']);
+            Route::put('/sync-players', [WnbaMarketController::class, 'syncPlayers']);
         });
+
         Route::prefix('/players')->group(function () {
-            Route::get('/{player}/scores', [WnbaGameController::class, 'getScores']);
+            Route::get('/{player}/stats', [WnbaPlayerController::class, 'getStats']);
+            Route::get('/{player}/scores', [WnbaPlayerController::class, 'getScores']);
+        });
+
+        Route::prefix('/teams')->group(function () {
+            Route::get('/stats/averages', [WnbaTeamController::class, 'getAverageStatsAll']);
+            Route::get('/{team}/stats/averages', [WnbaTeamController::class, 'getAverageStats']);
+            Route::get('/{team}/stats', [WnbaTeamController::class, 'getStats']);
+            Route::get('/stats/recent-performance', [WnbaTeamController::class, 'getRecentPerformance']);
         });
     });
 

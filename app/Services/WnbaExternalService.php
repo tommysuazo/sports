@@ -68,6 +68,20 @@ class WnbaExternalService
         return $request;
     }
 
+    public static function getTodayLineups()
+    {
+        $date = now()->setTimezone(config('app.user_timezone'))->format('Ymd');
+
+        $request = Http::withHeaders(self::headers())
+            ->get(self::BASE_URL . '/js/data/leaders/10_daily_lineups_' . $date . '.json');
+
+        if (!$request->successful()) {
+            throw new KnownException("Fallo al intentar obtener las alineaciones WNBA del dia de hoy");
+        }
+
+        return $request->json();
+    }
+
     public function importGamesByDate(Carbon $date): ?WnbaGame
     {
         Log::info("Importando juegos de WNBA de la fecha " . $date->toDateString());
