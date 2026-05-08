@@ -39,7 +39,9 @@ enum DigitalSportsTechWnbaEnum: string
             "MIN" => 9983, // Minnesota Lynx
             "NYL" => 9986, // New York Liberty
             "PHO" => 9984, // Phoenix Mercury
+            "POR" => 11119, // Portland Fire
             "SEA" => 9982, // Seattle Storm
+            'TOR' => 11118, // Toronto Tempo
             "WAS" => 9978, // Washington Mystics
         ];
 

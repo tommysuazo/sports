@@ -16,7 +16,9 @@ enum WnbaTeamExternalDataEnum: int
     case MIN = 1611661324; // Minnesota Lynx
     case NYL = 1611661313; // New York Liberty
     case PHO = 1611661317; // Phoenix Mercury
+    case POR = 1611661327; // Portland Fire
     case SEA = 1611661328; // Seattle Storm
+    case TOR = 1611661332; // Toronto Tempo
     case WAS = 1611661322; // Washington Mystics
 
     public static function allTeamExternalIds()
@@ -33,7 +35,9 @@ enum WnbaTeamExternalDataEnum: int
             'MIN' => self::MIN->value,
             'NYL' => self::NYL->value,
             'PHO' => self::PHO->value,
+            'POR' => self::POR->value,
             'SEA' => self::SEA->value,
+            'TOR' => self::TOR->value,
             'WAS' => self::WAS->value,
         ];
     }

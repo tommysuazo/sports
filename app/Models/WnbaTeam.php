@@ -7,6 +7,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WnbaTeam extends BasketballTeam
 {
+    public $timestamps = true;
+
+    protected $fillable = [
+        'external_id',
+        'market_id',
+        'name',
+        'short_name',
+        'city',
+        'wins',
+        'losses',
+    ];
+
     public function players(): HasMany
     {
         return $this->hasMany(WnbaPlayer::class, 'team_id');
@@ -24,6 +36,16 @@ class WnbaTeam extends BasketballTeam
 
     public function scores(): HasMany
     {
-        return $this->hasMany(WnbaTeamScore::class, 'team_id', 'id');
+        return $this->hasMany(WnbaTeamStat::class, 'team_id', 'id');
+    }
+
+    public function stats(): HasMany
+    {
+        return $this->scores();
+    }
+
+    public function markets(): HasMany
+    {
+        return $this->hasMany(WnbaTeamMarket::class, 'team_id');
     }
 }

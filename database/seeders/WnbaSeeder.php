@@ -4,12 +4,9 @@ namespace Database\Seeders;
 
 use App\Enums\DigitalSportsTech\DigitalSportsTechWnbaEnum;
 use App\Enums\WNBA\WnbaTeamExternalDataEnum;
-use App\Models\NbaPlayer;
-use App\Models\NbaTeam;
 use App\Models\WnbaPlayer;
 use App\Models\WnbaTeam;
 use App\Services\DigitalSportsTechService;
-use App\Services\NbaExternalService;
 use App\Services\WnbaExternalService;
 use Illuminate\Database\Seeder;
 
@@ -82,9 +79,19 @@ class WnbaSeeder extends Seeder
                 'short_name' => 'PHO', 'city' => 'Phoenix', 'name' => 'Mercury'
             ],
             [
+                'external_id' => WnbaTeamExternalDataEnum::POR->value,
+                'market_id' => DigitalSportsTechWnbaEnum::getTeamId('POR'),
+                'short_name' => 'POR', 'city' => 'Portland', 'name' => 'Fire'
+            ],
+            [
                 'external_id' => WnbaTeamExternalDataEnum::SEA->value,
                 'market_id' => DigitalSportsTechWnbaEnum::getTeamId('SEA'),
                 'short_name' => 'SEA', 'city' => 'Seattle', 'name' => 'Storm'
+            ],
+            [
+                'external_id' => WnbaTeamExternalDataEnum::TOR->value,
+                'market_id' => DigitalSportsTechWnbaEnum::getTeamId('TOR'),
+                'short_name' => 'TOR', 'city' => 'Toronto', 'name' => 'Tempo'
             ],
             [
                 'external_id' => WnbaTeamExternalDataEnum::WAS->value,
@@ -93,23 +100,23 @@ class WnbaSeeder extends Seeder
             ],
         ];
 
-        NbaTeam::insert($teams);
+        WnbaTeam::insert($teams);
 
-        $teams = NbaTeam::all();
+        $teams = WnbaTeam::all();
 
         $players = [];
 
-        foreach (NbaExternalService::getWnbaPlayersData() as $playerData) {
+        foreach (WnbaExternalService::getPlayers() as $playerData) {
             $players[] = [
-                'external_id' => $playerData[0],
-                'first_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData[2]),
-                'last_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData[1]),
-                'team_id' => $teams->firstWhere('external_id', $playerData[4])?->id,
+                'external_id' => $playerData['external_id'],
+                'first_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData['first_name']),
+                'last_name' => transliterator_transliterate('Any-Latin; Latin-ASCII', $playerData['last_name']),
+                'team_id' => $teams->firstWhere('external_id', $playerData['team_external_id'])?->id,
             ];
         }
 
-        NbaPlayer::insert($players);
+        WnbaPlayer::insert($players);
 
-        $this->digitalSportsTechService->syncNbaPlayerMarketIds(); // Asegúrate que este método esté definido
+        $this->digitalSportsTechService->syncWnbaPlayerMarketIds();
     }
 }

@@ -4,21 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class WnbaTeamScore extends Model
+class WnbaTeamStat extends Model
 {
     use HasFactory;
-    
-    public $timestamps = false;
     
     protected $fillable = [
         'game_id',
         'team_id',
-        'player_id',
-        'locality',
-        'is_starter',
-        'mins',
+        'is_away',
         'points',
+        'first_half_points',
+        'second_half_points',
+        'first_quarter_points',
+        'second_quarter_points',
+        'third_quarter_points',
+        'fourth_quarter_points',
+        'overtimes',
+        'overtime_points',
         'assists',
         'rebounds',
         'steals',
@@ -33,13 +37,13 @@ class WnbaTeamScore extends Model
         'free_throws_attempted',
     ];
 
-    public function player()
+    public function team(): BelongsTo
     {
-        return $this->belongsTo(NbaPlayer::class);
+        return $this->belongsTo(WnbaTeam::class, 'team_id', 'id');
     }
 
-    public function game()
+    public function game(): BelongsTo
     {
-        return $this->belongsTo(NbaGame::class);
+        return $this->belongsTo(WnbaGame::class, 'game_id', 'id');
     }
 }

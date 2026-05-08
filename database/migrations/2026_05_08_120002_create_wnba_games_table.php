@@ -6,23 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('wnba_games', function (Blueprint $table) {
             $table->id();
             $table->string('external_id')->unique();
+            $table->string('market_id')->nullable()->unique();
             $table->foreignId('away_team_id')->constrained('wnba_teams');
             $table->foreignId('home_team_id')->constrained('wnba_teams');
-            $table->timestamp('started_at');
+            $table->foreignId('winner_team_id')->nullable()->constrained('wnba_teams');
+            $table->timestamp('start_at');
+            $table->boolean('is_completed');
+            $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('wnba_games');

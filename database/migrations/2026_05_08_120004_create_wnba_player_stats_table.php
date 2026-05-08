@@ -6,16 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('wnba_player_scores', function (Blueprint $table) {
+        Schema::create('wnba_player_stats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('game_id')->constrained('wnba_games');
             $table->foreignId('team_id')->constrained('wnba_teams');
             $table->foreignId('player_id')->constrained('wnba_players');
+            $table->boolean('is_away');
             $table->boolean('is_starter');
             $table->string('mins', 6);
             $table->unsignedTinyInteger('points');
@@ -31,14 +29,12 @@ return new class extends Migration
             $table->unsignedTinyInteger('three_pointers_attempted');
             $table->unsignedTinyInteger('free_throws_made');
             $table->unsignedTinyInteger('free_throws_attempted');
+            $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('wnba_player_scores');
+        Schema::dropIfExists('wnba_player_stats');
     }
 };
