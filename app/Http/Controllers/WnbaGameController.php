@@ -42,6 +42,8 @@ class WnbaGameController extends Controller
 
     public function getLineups()
     {
-        return response()->json(WnbaExternalService::getTodayLineups());
+        // return response()->json(WnbaExternalService::getTodayLineups());
+
+        return null;
     }
 }

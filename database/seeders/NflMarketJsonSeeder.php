@@ -2,13 +2,18 @@
 
 namespace Database\Seeders;
 
+use App\Services\DigitalSportsTechClient;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
 class NflMarketJsonSeeder extends Seeder
 {
+    public function __construct(
+        protected DigitalSportsTechClient $digitalSportsTechClient,
+    ) {
+    }
+
     /**
      * URLs iniciales para obtener los game IDs
      */
@@ -100,7 +105,7 @@ class NflMarketJsonSeeder extends Seeder
             'description' => 'Players interceptions market by game'
         ],
         [
-            'url' => 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped?sb=juancito&gameId={gameId}',
+            'url' => 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped?sb=juancito&legacy=1&gameId={gameId}',
             'description' => 'Team general markets by game'
         ],
         [
@@ -153,7 +158,7 @@ class NflMarketJsonSeeder extends Seeder
             Log::info("Procesando URL inicial: {$urlData['url']}");
 
             try {
-                $response = Http::timeout(30)->get($urlData['url']);
+                $response = $this->digitalSportsTechClient->get($urlData['url'], [], 30);
                 
                 if ($response->successful()) {
                     $jsonData = $response->json();
@@ -257,7 +262,7 @@ class NflMarketJsonSeeder extends Seeder
                 $this->command->info("  🔄 URL {$currentUrlNum}/{$totalUrlsPerGame}: {$template['description']}");
                 
                 try {
-                    $response = Http::timeout(30)->get($url);
+                    $response = $this->digitalSportsTechClient->get($url, [], 30);
                     
                     if ($response->successful()) {
                         $jsonData = $response->json();

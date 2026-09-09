@@ -13,13 +13,13 @@ use App\Repositories\NbaTeamRepository;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class NbaMarketService
 {
     public function __construct(
         protected DigitalSportsTechService $digitalSportsTechService,
+        protected DigitalSportsTechClient $digitalSportsTechClient,
         protected NbaTeamRepository $nbaTeamRepository
     ){
     }
@@ -202,10 +202,10 @@ class NbaMarketService
     private function fetchGfmGames(): array
     {
         try {
-            $response = Http::timeout(20)->get(self::GFM_GAMES_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::GFM_GAMES_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
                 'league' => 'nba',
-            ]);
+            ], 20);
 
             if (!$response->successful()) {
                 Log::warning('Error HTTP al obtener juegos NBA con mercados', [
@@ -343,8 +343,9 @@ class NbaMarketService
     private function fetchTeamMarketPayload(string $marketId): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::TEAM_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::TEAM_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
+                'legacy' => 1,
                 'gameId' => $marketId,
             ]);
 
@@ -606,7 +607,7 @@ class NbaMarketService
     private function fetchPlayerMarketPayload(string $marketId, string $statistic): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::PLAYER_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::PLAYER_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
                 'gameId' => $marketId,
                 'statistic' => $statistic,

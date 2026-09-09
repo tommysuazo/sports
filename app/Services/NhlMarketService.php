@@ -9,7 +9,6 @@ use App\Models\NhlPlayerMarket;
 use App\Models\NhlTeam;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 
@@ -34,6 +33,11 @@ class NhlMarketService
     private const PLAYER_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/dfm/marketsByOu';
     private const TEAM_MARKET_ENDPOINT = 'https://bv2-us.digitalsportstech.com/api/sgmMarkets/gfm/grouped';
     private const SPORTSBOOK_ALIAS = 'juancito';
+
+    public function __construct(
+        protected DigitalSportsTechClient $digitalSportsTechClient,
+    ) {
+    }
 
     public function getLiveMarkets($date = null): Collection
     {
@@ -106,7 +110,10 @@ class NhlMarketService
             Log::info("Procesando equipo {$team->name}");
             $players = $team->players;
 
-            $marketPlayers = Http::get("https://bv2-us.digitalsportstech.com/api/player?leagueId=141&teamId={$team->market_id}");
+            $marketPlayers = $this->digitalSportsTechClient->get('player', [
+                'leagueId' => 141,
+                'teamId' => $team->market_id,
+            ]);
 
             $marketPlayers = collect($marketPlayers->json())->map(fn ($player) => collect($player));
 
@@ -222,7 +229,7 @@ class NhlMarketService
 
         foreach (self::DISCOVERY_STATISTICS as $statistic) {
             try {
-                $response = Http::timeout(15)->get(self::PLAYER_GAMES_ENDPOINT, [
+                $response = $this->digitalSportsTechClient->get(self::PLAYER_GAMES_ENDPOINT, [
                     'gameId' => 'null',
                     'statistic' => $statistic,
                     'league' => 'nhl',
@@ -258,8 +265,9 @@ class NhlMarketService
     private function fetchTeamMarketPayload(string $marketId): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::TEAM_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::TEAM_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
+                'legacy' => 1,
                 'gameId' => $marketId,
             ]);
 
@@ -308,7 +316,7 @@ class NhlMarketService
     private function fetchPlayerMarketPayload(string $marketId, string $statistic): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::PLAYER_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::PLAYER_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
                 'gameId' => $marketId,
                 'statistic' => $statistic,

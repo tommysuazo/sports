@@ -12,13 +12,13 @@ use App\Models\WnbaTeamMarket;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class WnbaMarketService
 {
     public function __construct(
-        protected DigitalSportsTechService $digitalSportsTechService
+        protected DigitalSportsTechService $digitalSportsTechService,
+        protected DigitalSportsTechClient $digitalSportsTechClient
     ){
     }
 
@@ -200,13 +200,13 @@ class WnbaMarketService
     private function fetchGfmGames(): array
     {
         try {
-            $response = Http::timeout(20)->get(self::GFM_GAMES_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::GFM_GAMES_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
                 'league' => 'wnba',
-            ]);
+            ], 20);
 
             if (!$response->successful()) {
-                Log::warning('Error HTTP al obtener juegos WNBA con mercados', [
+                Log::warning('Error HTTP al obtener juegos WNBA con mercados: ruta=' . ((string) $response->effectiveUri()), [
                     'status' => $response->status(),
                 ]);
                 return [];
@@ -341,8 +341,9 @@ class WnbaMarketService
     private function fetchTeamMarketPayload(string $marketId): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::TEAM_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::TEAM_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
+                'legacy' => 1,
                 'gameId' => $marketId,
             ]);
 
@@ -604,7 +605,7 @@ class WnbaMarketService
     private function fetchPlayerMarketPayload(string $marketId, string $statistic): ?array
     {
         try {
-            $response = Http::timeout(15)->get(self::PLAYER_MARKET_ENDPOINT, [
+            $response = $this->digitalSportsTechClient->get(self::PLAYER_MARKET_ENDPOINT, [
                 'sb' => self::SPORTSBOOK_ALIAS,
                 'gameId' => $marketId,
                 'statistic' => $statistic,

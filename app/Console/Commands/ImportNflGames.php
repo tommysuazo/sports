@@ -11,7 +11,7 @@ class ImportNflGames extends Command
     /**
      * artisan nfl:import-games 1 [week_to] [year]
      */
-    protected $signature = 'nfl:import-games {week_from} {week_to?} {year=2025}';
+    protected $signature = 'nfl:import-games {week_from} {week_to?} {year=2026}';
 
     protected $description = 'Import NFL games from week_from to week_to for a given year';
 

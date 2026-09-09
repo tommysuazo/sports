@@ -28,6 +28,19 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
+    'digital_sports_tech' => [
+        'base_url' => env('DIGITAL_SPORTS_TECH_BASE_URL', 'https://bv2-us.digitalsportstech.com/api'),
+        'referer' => env('DIGITAL_SPORTS_TECH_REFERER', 'https://bv2-us.digitalsportstech.com/betbuilder'),
+        'sportsbook_alias' => env('DIGITAL_SPORTS_TECH_SPORTSBOOK_ALIAS', 'juancito'),
+        'accept_language' => env('DIGITAL_SPORTS_TECH_ACCEPT_LANGUAGE', 'es-ES,es;q=0.9'),
+        'user_agent' => env(
+            'DIGITAL_SPORTS_TECH_USER_AGENT',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+        ),
+        'challenge_timeout' => env('DIGITAL_SPORTS_TECH_CHALLENGE_TIMEOUT', 10),
+        'challenge_ttl' => env('DIGITAL_SPORTS_TECH_CHALLENGE_TTL', 300),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

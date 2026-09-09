@@ -27,8 +27,8 @@ enum NflWeekEnum: int
     case WEEK_17 = 17;
     case WEEK_18 = 18;
 
-    private const REGULAR_SEASON_START = '2025-09-05 05:00:00';
-    private const SEASON_YEAR = 2025;
+    private const REGULAR_SEASON_START = '2026-09-09 05:00:00';
+    private const SEASON_YEAR = 2026;
 
     public function label(): string
     {

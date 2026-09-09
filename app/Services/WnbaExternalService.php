@@ -92,6 +92,14 @@ class WnbaExternalService
 
         foreach ($games as $gameData) {
             logger()->info("Importando juego WNBA con ID externo " . $gameData['gameId']);
+            
+            $awayTeam = WnbaTeam::firstWhere('external_id', $gameData['awayTeam']['teamId']);
+            $homeTeam = WnbaTeam::firstWhere('external_id', $gameData['homeTeam']['teamId']);
+
+            if (!$awayTeam || !$homeTeam) {
+                return null;
+            }
+
             $lastGameImported = $this->createGame($gameData);
         }
 

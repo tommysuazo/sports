@@ -10,6 +10,7 @@ use App\Models\NflPlayer;
 use App\Models\NflTeam;
 use App\Models\NhlTeam;
 use App\Services\NbaExternalService;
+use App\Services\DigitalSportsTechClient;
 use App\Services\NflExternalService;
 use App\Services\NflMarketService;
 use App\Services\NhlExternalService;
@@ -17,17 +18,31 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TestController extends Controller
 {
 
 
-    public function __invoke()
+    public function __invoke(DigitalSportsTechClient $digitalSportsTechClient)
     {
-        $request = Http::withHeaders(NbaExternalService::headers())
-            ->get(NbaExternalService::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2025-26');
+        $gamesResponse = $digitalSportsTechClient->get('sgmGames', [
+            'sb' => 'juancito',
+            'league' => 'wnba',
+            'sport' => 'basketball',
+        ], 20);
 
-        return $players = $request->json();
+        dd([
+            'status' => $gamesResponse->status(),
+            'successful' => $gamesResponse->successful(),
+            'json' => $gamesResponse->json(),
+            'body' => $gamesResponse->body(),
+        ]);
+
+        // $request = Http::withHeaders(NbaExternalService::headers())
+        //     ->get(NbaExternalService::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2025-26');
+
+        // return $players = $request->json();
 
         // return NbaTeam::all();
         

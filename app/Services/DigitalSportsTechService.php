@@ -19,6 +19,7 @@ class DigitalSportsTechService
     
     public function __construct(
         protected NbaPlayerRepository $nbaPlayerRepository,
+        protected DigitalSportsTechClient $digitalSportsTechClient,
     ){
     }
 
@@ -65,7 +66,7 @@ class DigitalSportsTechService
         foreach (DigitalSportsTechNbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
 
-            $response = Http::get($this->getTeamPlayersUrl('nba', $teamCode));
+            $response = $this->digitalSportsTechClient->get($this->getTeamPlayersUrl('nba', $teamCode));
 
             foreach($response->json() as $marketPlayer) {
                 $player = $players->firstWhere('full_name', $marketPlayer['name']);
@@ -96,7 +97,7 @@ class DigitalSportsTechService
         foreach (DigitalSportsTechWnbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
 
-            $response = Http::get($this->getWnbaTeamPlayersUrl('wnba', $teamCode));
+            $response = $this->digitalSportsTechClient->get($this->getWnbaTeamPlayersUrl('wnba', $teamCode));
 
             foreach($response->json() as $marketPlayer) {
                 $player = $players->firstWhere('full_name', $marketPlayer['name']);
@@ -130,7 +131,7 @@ class DigitalSportsTechService
             return $playerMarkets;
         }
 
-        $response = Http::get($this->getPlayerMarketsByTypeUrl(DigitalSportsTechNbaEnum::POINTS->value, 'wnba'));
+        $response = $this->digitalSportsTechClient->get($this->getPlayerMarketsByTypeUrl(DigitalSportsTechNbaEnum::POINTS->value, 'wnba'));
 
         if (!$response->successful()) {
             throw new Exception("Failed to get nba markets from digital sports tech");
@@ -142,7 +143,7 @@ class DigitalSportsTechService
             
             foreach (DigitalSportsTechNbaEnum::all() as $statType => $marketType) {
 
-                $marketTypeResponse = Http::get($this->getGamePlayerMarketUrl($marketType, $gameId));
+                $marketTypeResponse = $this->digitalSportsTechClient->get($this->getGamePlayerMarketUrl($marketType, $gameId));
 
                 if (!$marketTypeResponse->successful()) {
                     throw new Exception("Failed to get nba markets id {$gameId} from digital sports tech");
