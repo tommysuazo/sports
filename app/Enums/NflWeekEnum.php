@@ -37,12 +37,12 @@ enum NflWeekEnum: int
 
     public function startDate(): CarbonImmutable
     {
-        return $this->seasonStart()->addWeeks($this->value - 1);
+        return self::seasonStart()->addWeeks($this->value - 1);
     }
 
     public function endDate(): CarbonImmutable
     {
-        return $this->startDate()->addDays(6)->endOfDay();
+        return $this->startDate()->addWeek()->subSecond();
     }
 
     public function contains(CarbonInterface $date): bool
@@ -68,25 +68,9 @@ enum NflWeekEnum: int
 
         $moment = $moment->setTimezone('UTC');
 
-        $kickoffLocal = CarbonImmutable::create(2025, 9, 4, 20, 20, 0, '-04:00');
-        $firstWeekStart = $kickoffLocal->setTime(1, 0, 0)->setTimezone('UTC');
-
-        $weekRanges = [];
-
-        for ($weekNumber = 1; $weekNumber <= 18; $weekNumber++) {
-            $start = $firstWeekStart->addWeeks($weekNumber - 1);
-            $end = $start->addWeek()->subSecond();
-
-            $weekRanges[] = [
-                'week' => $weekNumber,
-                'start' => $start,
-                'end' => $end,
-            ];
-        }
-
-        foreach ($weekRanges as $range) {
-            if ($moment->betweenIncluded($range['start'], $range['end'])) {
-                return self::getWeek($range['week']);
+        foreach (self::cases() as $week) {
+            if ($week->contains($moment)) {
+                return $week;
             }
         }
 
@@ -130,8 +114,8 @@ enum NflWeekEnum: int
         return $week;
     }
 
-    private function seasonStart(): CarbonImmutable
+    private static function seasonStart(): CarbonImmutable
     {
-        return CarbonImmutable::parse(self::REGULAR_SEASON_START)->startOfDay();
+        return CarbonImmutable::parse(self::REGULAR_SEASON_START, 'UTC');
     }
 }
