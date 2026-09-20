@@ -18,15 +18,20 @@ class NflTeamController extends Controller
         return $this->nflTeamService->getTeamStats($team);
     }
 
-    public function getAverageStatsAll(Request $request)
+    public function getAverageStatsAll()
     {
-        $games = max(1, (int) $request->integer('games', 7));
-
-        return $this->nflTeamService->getTeamsAverageStats($games);
+        return $this->nflTeamService->getTeamsAverageStats();
     }
 
     public function getAverageStats(NflTeam $team)
     {
         return $this->nflTeamService->getTeamAverageStats($team);
+    }
+
+    public function getRecentPerformance(Request $request)
+    {
+        $games = max(1, (int) $request->integer('games', 7));
+
+        return $this->nflTeamService->getTeamsRecentPerformance($games);
     }
 }

@@ -9,6 +9,28 @@ use Illuminate\Support\Collection;
 
 class NflTeamService
 {
+    /**
+     * Metrics included in the offensive and defensive rankings.
+     *
+     * @var array<int, string>
+     */
+    protected array $rankingMetrics = [
+        'points_total',
+        'points_q1',
+        'points_q2',
+        'points_q3',
+        'points_q4',
+        'points_ot',
+        'total_yards',
+        'passing_yards',
+        'pass_completions',
+        'pass_attempts',
+        'rushing_yards',
+        'carries',
+        'sacks',
+        'tackles',
+    ];
+
     public function __construct(
         protected NflTeamStatRepository $nflTeamStatRepository,
     ) {
@@ -33,9 +55,50 @@ class NflTeamService
         ];
     }
 
-    public function getTeamsAverageStats(int $games = 7): array
+    public function getTeamsAverageStats(): array
     {
-        return $this->getTeamsRecentPerformance($games);
+        $teams = NflTeam::orderBy('name')->get(['id', 'name', 'code', 'city']);
+        $aggregated = $this->nflTeamStatRepository->getAverageStatsForAllTeams();
+
+        $teamsData = $teams->mapWithKeys(function (NflTeam $team) use ($aggregated) {
+            $stats = $aggregated[$team->id] ?? null;
+            $forValues = $stats['averages']['for'] ?? [];
+            $againstValues = $stats['averages']['against'] ?? [];
+
+            return [
+                $team->id => [
+                    'team' => [
+                        'id' => $team->id,
+                        'name' => $team->name,
+                        'code' => $team->code,
+                        'city' => $team->city,
+                    ],
+                    'games_with_stats' => (int) ($stats['games_with_stats'] ?? 0),
+                    'averages' => [
+                        'for' => $this->normalizeMetrics($forValues),
+                        'against' => $this->normalizeMetrics($againstValues),
+                    ],
+                    'rankings' => [
+                        'offense' => array_fill_keys($this->rankingMetrics, null),
+                        'defense' => array_fill_keys($this->rankingMetrics, null),
+                    ],
+                ],
+            ];
+        })->all();
+
+        $this->assignRankings($teamsData, 'for', 'offense', true);
+        $this->assignRankings($teamsData, 'against', 'defense', false);
+
+        return [
+            'teams' => array_values(array_map(function (array $data) {
+                return [
+                    'team' => $data['team'],
+                    'games_with_stats' => $data['games_with_stats'],
+                    'ofensive' => $this->buildMetricResponse($data['averages']['for'], $data['rankings']['offense']),
+                    'defensive' => $this->buildMetricResponse($data['averages']['against'], $data['rankings']['defense']),
+                ];
+            }, $teamsData)),
+        ];
     }
 
     public function getTeamsRecentPerformance(int $games = 7): array
@@ -83,6 +146,44 @@ class NflTeamService
         return [
             'teams' => $teamsData->toArray(),
         ];
+    }
+
+    protected function normalizeMetrics(array $values): array
+    {
+        $defaults = array_fill_keys($this->rankingMetrics, null);
+        $filtered = array_intersect_key($values, $defaults);
+
+        return array_replace($defaults, $filtered);
+    }
+
+    protected function buildMetricResponse(array $values, array $ranks): array
+    {
+        $response = [];
+
+        foreach ($this->rankingMetrics as $metric) {
+            $response[$metric] = [
+                'value' => $values[$metric],
+                'rank' => $ranks[$metric],
+            ];
+        }
+
+        return $response;
+    }
+
+    protected function assignRankings(array &$teamsData, string $averageSide, string $rankingSide, bool $descending): void
+    {
+        foreach ($this->rankingMetrics as $metric) {
+            $collection = collect($teamsData)
+                ->filter(fn (array $data) => $data['averages'][$averageSide][$metric] !== null);
+
+            $sorted = $descending
+                ? $collection->sortByDesc(fn (array $data) => $data['averages'][$averageSide][$metric])
+                : $collection->sortBy(fn (array $data) => $data['averages'][$averageSide][$metric]);
+
+            foreach ($sorted->keys()->values() as $index => $teamId) {
+                $teamsData[$teamId]['rankings'][$rankingSide][$metric] = $index + 1;
+            }
+        }
     }
 
     protected function calculateRecentRecord(Collection $stats, int $teamId): array

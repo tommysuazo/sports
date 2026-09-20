@@ -99,6 +99,7 @@ Route::middleware(['api'])->group(function () {
             Route::get('/stats/averages', [NflTeamController::class, 'getAverageStatsAll']);
             Route::get('/{team}/stats/averages', [NflTeamController::class, 'getAverageStats']);
             Route::get('/{team}/stats', [NflTeamController::class, 'getStats']);
+            Route::get('/stats/recent-performance', [NflTeamController::class, 'getRecentPerformance']);
         });
 
         Route::prefix('/markets')->group(function () {
