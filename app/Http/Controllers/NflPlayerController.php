@@ -23,12 +23,12 @@ class NflPlayerController extends Controller
     {
         $cacheKey = sprintf('player-stats:%s', $player->getKey());
 
-        return Cache::tags(['player-stats'])->rememberForever($cacheKey, function () use ($player) {
+        // return Cache::tags(['player-stats'])->rememberForever($cacheKey, function () use ($player) {
             return $player->load([
                 'stats' => fn($query) => $query->with([
                     'game' => fn($q) => $q->with(['homeTeam:id,code', 'awayTeam:id,code']),
                 ])->orderByDesc('nfl_player_stats.id'),
             ]);
-        });
+        // });
     }
 }
