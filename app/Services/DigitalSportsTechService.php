@@ -63,10 +63,14 @@ class DigitalSportsTechService
     {
         $allPlayers = NbaPlayer::with('team')->has('team')->get();
 
-        foreach (DigitalSportsTechNbaEnum::getTeamIds() as $teamCode => $teamMarketId) {
+        foreach (DigitalSportsTechNbaEnum::getTeamIds() as $teamMarketId) {
             $players = $allPlayers->filter(fn($player) => $player->team->market_id == $teamMarketId);
 
-            $response = $this->digitalSportsTechClient->get($this->getTeamPlayersUrl('nba', $teamCode));
+            $response = $this->digitalSportsTechClient->get('player', [
+                'isActive' => 'true',
+                'leagueId' => DigitalSportsTechLeagueEnum::getLeagueIds('nba'),
+                'teamId' => $teamMarketId,
+            ]);
 
             foreach($response->json() as $marketPlayer) {
                 $player = $players->firstWhere('full_name', $marketPlayer['name']);

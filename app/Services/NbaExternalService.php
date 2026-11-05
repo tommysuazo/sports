@@ -36,7 +36,7 @@ class NbaExternalService
     public static function getPlayers()
     {   
         $request = Http::withHeaders(self::headers())
-            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2025-26');
+            ->get(self::BASE_URL . '/stats/playerindex?LeagueID=00&Season=2026-27');
 
         if (!$request->successful()) {
             throw new KnownException("Fallo en el retorno de jugadores de Nba con la clase " . __CLASS__);

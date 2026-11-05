@@ -26,13 +26,20 @@ class TestController extends Controller
 
     public function __invoke(DigitalSportsTechClient $digitalSportsTechClient)
     {
-        $gamesResponse = $digitalSportsTechClient->get('sgmGames', [
-            'sb' => 'juancito',
-            'league' => 'wnba',
-            'sport' => 'basketball',
+        // $gamesResponse = $digitalSportsTechClient->get('sgmGames', [
+        //     'sb' => 'juancito',
+        //     'league' => 'nba',
+        //     'sport' => 'basketball',
+        // ], 20);
+
+        $gamesResponse = $digitalSportsTechClient->get('player', [
+            'isActive' => 'true',
+            'leagueId' => '123',
+            'teamId' => '2099',
         ], 20);
 
         dd([
+            'response' => (string) $gamesResponse->effectiveUri(),
             'status' => $gamesResponse->status(),
             'successful' => $gamesResponse->successful(),
             'json' => $gamesResponse->json(),
